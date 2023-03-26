@@ -5,10 +5,12 @@ from kalshi import ExchangeClient
 import logging
 import uuid
 import calendar
+from typing import Optional
 
 logging.basicConfig(level=logging.DEBUG)
 
 def login():
+    """ Prompt user for Kalshi login credentials and return exchange client """
     email = getpass("Email: ")
     password = getpass("Password: ")
     exchange_api_base = "https://demo-api.kalshi.co/trade-api/v2"
@@ -34,8 +36,9 @@ def get_all_markets(exchange_client):
     return all_markets
 
 
-def create_no_orders_for_every_contract_in_market(events, limit_price=48):
+def create_no_orders_for_every_contract_in_market(events: dict, limit_price: Optional[int] = 48):
     """
+    Create no order for every contract in a given market
     events dict: dictionary of events for particular market
     limit_price int: integer for number of cents for limit price
     """
@@ -50,7 +53,9 @@ def create_no_orders_for_every_contract_in_market(events, limit_price=48):
     for event in events['markets']:
         exchange_client.create_order(ticker=event["ticker"], client_order_id=str(uuid.uuid4()), **order_params)
 
+
 def get_todays_date():
+    """ Create today's date in format '99MAR21' """
 
     month = calendar.month_abbr[datetime.date.today().month].upper()
     year = str(datetime.date.today().year)[2:]
@@ -61,7 +66,8 @@ def get_todays_date():
 
     return date_string
 
-def create_sp_market_id(todays_date):
+def create_sp_market_id(todays_date: str):
+    """ Create market id for S&P 500 market """
 
     logging.debug(f"Day: {datetime.date.today().weekday()}")
     if datetime.date.today().weekday() == 4:
@@ -72,7 +78,9 @@ def create_sp_market_id(todays_date):
     logging.debug(f"Market ID: {market_id}")
     return market_id
 
-def cancel_all_orders_for_market(market_id):
+
+def cancel_all_orders_for_market(market_id: uuid):
+    """ Iterates through each currently open order for a given market and decreases remaining count to 0 """
 
     all_orders = exchange_client.get_orders(event_ticker=market_id)['orders']
     logging.debug(all_orders)
@@ -141,6 +149,7 @@ def check_current_order_status(current_positions, market_id):
     if len([e['ticker'] for e in current_positions if e['resting_orders_count'] > 0 and e['total_traded'] > 0]) == 1:
         print("One partial order completed. Cancel all existing orders and sell contracts")
         cancel_all_orders_for_market(market_id)
+        sell_all_contracts_for_market(market_id)
 
 
 # Press the green button in the gutter to run the script.
@@ -150,16 +159,15 @@ if __name__ == '__main__':
     exchange_client = login()
     market_id = create_sp_market_id(todays_date)
     market_id = 'INXD-23MAR27' # remove in production
-    #events = exchange_client.get_event(market_id)
+    events = exchange_client.get_event(market_id)
     # TODO Create logic to check if orders already exist
-    #create_no_orders_for_every_contract_in_market(events=events, limit_price=48)
+    create_no_orders_for_every_contract_in_market(events=events, limit_price=48)
 
-    # At 12
-    #current_positions = exchange_client.get_positions(event_ticker=market_id)['market_positions']
-    #check_current_order_status(current_positions, market_id)
-    #cancel_all_orders_for_market(market_id)
+    # At 1
+    current_positions = exchange_client.get_positions(event_ticker=market_id)['market_positions']
+    check_current_order_status(current_positions, market_id)
 
-    sell_all_contracts_for_market(market_id)
+
 
 
 
