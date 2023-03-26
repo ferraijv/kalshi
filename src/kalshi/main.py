@@ -1,7 +1,7 @@
 
 import datetime
 from getpass import getpass
-from kalshi import ExchangeClient
+from src.kalshi.kalshi import ExchangeClient
 import logging
 import uuid
 import calendar
@@ -54,26 +54,27 @@ def create_no_orders_for_every_contract_in_market(events: dict, limit_price: Opt
         exchange_client.create_order(ticker=event["ticker"], client_order_id=str(uuid.uuid4()), **order_params)
 
 
-def get_todays_date():
+def format_date(date_to_format = datetime.date.today()):
     """ Create today's date in format '99MAR21' """
 
-    month = calendar.month_abbr[datetime.date.today().month].upper()
-    year = str(datetime.date.today().year)[2:]
-    day = datetime.date.today().day
+    month = calendar.month_abbr[date_to_format.month].upper()
+    year = str(date_to_format.year)[2:]
+    day = date_to_format.strftime("%d")
     date_string = f"{year}{month}{day}"
 
     logging.debug(date_string)
 
     return date_string
 
-def create_sp_market_id(todays_date: str):
+def create_sp_market_id(run_date = datetime.date.today()):
     """ Create market id for S&P 500 market """
 
-    logging.debug(f"Day: {datetime.date.today().weekday()}")
-    if datetime.date.today().weekday() == 4:
-        market_id = f"INXW-{todays_date}"
+    run_date_formatted = format_date(run_date)
+    logging.debug(f"Day: {run_date.weekday()}")
+    if run_date.weekday() == 4:
+        market_id = f"INXW-{run_date_formatted}"
     else:
-        market_id = f"INXD-{todays_date}"
+        market_id = f"INXD-{run_date_formatted}"
 
     logging.debug(f"Market ID: {market_id}")
     return market_id
@@ -155,7 +156,7 @@ def check_current_order_status(current_positions, market_id):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # At 8
-    todays_date = get_todays_date()
+    todays_date = format_date(datetime.date.today())
     exchange_client = login()
     market_id = create_sp_market_id(todays_date)
     market_id = 'INXD-23MAR27' # remove in production
