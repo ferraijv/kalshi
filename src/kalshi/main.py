@@ -6,6 +6,7 @@ import logging
 import uuid
 import calendar
 from typing import Optional
+import yfinance as yf
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -152,22 +153,33 @@ def check_current_order_status(current_positions, market_id):
         cancel_all_orders_for_market(market_id)
         sell_all_contracts_for_market(market_id)
 
+def get_s_and_p_data():
+    return yf.download('SPY', start='2023-01-01', end=datetime.date.today())
+
+def create_day_of_week(sp_data):
+    sp_data['day_of_week'] = sp_data.index.dayofweek
+    sp_data['year'] = sp_data.index.year
+    sp_data['week'] = sp_data.index.isocalendar().week
+    sp_data['year_week'] = sp_data['year'].astype(str) + sp_data['week'].astype(str)
+    return sp_data
+
+def get_sp_percentage_change(sp_data, day_of_week=1):
+    subset = sp_data[(sp_data['day_of_week'] == day_of_week) | (sp_data['day_of_week'] == 4)]
+    subset['friday_close'] = subset.groupby(["year_week"])['Close'].shift(-1)
+    subset = subset[(subset['day_of_week'] == day_of_week)]
+    subset['percentage_change'] = subset["Close"]/subset["friday_close"]
+    return subset
+
+def get_likelihood_of_similar_change(data, percentage_window):
+    df = data[(data["percentage_change"] >= percentage_window[0]) & (data["percentage_change"] <= percentage_window[1])]
+    return len(df.index)/len(data.index)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # At 8
-    todays_date = format_date(datetime.date.today())
-    exchange_client = login()
-    market_id = create_sp_market_id(todays_date)
-    market_id = 'INXD-23MAR27' # remove in production
-    events = exchange_client.get_event(market_id)
-    # TODO Create logic to check if orders already exist
-    create_no_orders_for_every_contract_in_market(events=events, limit_price=48)
-
-    # At 1
-    current_positions = exchange_client.get_positions(event_ticker=market_id)['market_positions']
-    check_current_order_status(current_positions, market_id)
-
+    sp_data = get_s_and_p_data()
+    sp_data = create_day_of_week(sp_data)
+    data = get_sp_percentage_change(sp_data)
+    get_likelihood_of_similar_change(data, (1.0, 1.04))
 
 
 
