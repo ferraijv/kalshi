@@ -202,7 +202,8 @@ def send_email(body):
     BODY_TEXT = body
 
     # The HTML body of the email.
-    BODY_HTML = """<html>
+    BODY_HTML = f"""<html>
+    {body}
     </html>
                 """
 
