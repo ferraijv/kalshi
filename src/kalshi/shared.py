@@ -143,15 +143,39 @@ def cancel_all_orders_for_market(market_id):
     logging.debug(all_orders)
     orders_to_cancel = [(e['order_id'], e['remaining_count']) for e in all_orders if e['remaining_count'] > 0]
 
+    orders_cancelled = []
     for order in orders_to_cancel:
         logging.debug(f"Canceling order id: {order[0]}")
         exchange_client.decrease_order(order_id=order[0], reduce_by=order[1])
+        orders_cancelled.append(order)
         logging.debug(f"{order[0]} cancelled")
 
     logging.debug("Done canceling existing orders")
 
+    send_email(f"Orders Cancelled: {str(orders_cancelled)}")
+
     return True
 
 
+def sell_all_contracts_for_market(market_id):
+
+    exchange_client = login()
+    order_params = {
+        "action": "sell",
+        "type": "market",
+        "side": "no",
+
+    }
+
+    contracts_sold = []
+    for event in exchange_client.get_positions(event_ticker=market_id)['market_positions']:
+        exchange_client.create_order(
+            event['ticker'],
+            client_order_id=str(uuid.uuid4()),
+            count=event['total_traded']
+        )
+        contracts_sold.append(event)
+
+    send_email(f"Sold orders created: {str(contracts_sold)}")
 
 

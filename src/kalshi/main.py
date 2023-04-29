@@ -22,13 +22,6 @@ def get_all_markets(exchange_client):
 
     return all_markets
 
-
-
-
-
-
-
-
 def create_limit_order_at_current_price_level(market_id):
     """
     Creates buy limit order at current market price for all markets in event
@@ -56,21 +49,6 @@ def create_limit_order_at_current_price_level(market_id):
 
     return True
 
-def sell_all_contracts_for_market(market_id):
-
-    order_params = {
-        "action": "sell",
-        "type": "market",
-        "side": "no",
-
-    }
-
-    for event in exchange_client.get_positions(event_ticker=market_id)['market_positions']:
-        exchange_client.create_order(
-            event['ticker'],
-            client_order_id=str(uuid.uuid4()),
-            count=event['total_traded']
-        )
 
 
 def check_current_order_status(current_positions, market_id):
