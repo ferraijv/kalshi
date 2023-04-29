@@ -9,19 +9,21 @@ from typing import Optional
 import yfinance as yf
 import boto3
 from botocore.exceptions import ClientError
-
+import platform
+import json
 
 logging.basicConfig(level=logging.DEBUG)
 
-def login():
+def login(email=None, password=None):
     """ Prompt user for Kalshi login credentials and return exchange client """
-    email = getpass("Email: ")
-    password = getpass("Password: ")
+
     exchange_api_base = "https://demo-api.kalshi.co/trade-api/v2"
-
-    exchange_client = ExchangeClient(exchange_api_base, email, password)
-
-    print(exchange_client.user_id)
+    if email and password:
+        exchange_client = ExchangeClient(exchange_api_base, email, password)
+    else:
+        email = getpass("Email: ")
+        password = getpass("Password: ")
+        exchange_client = ExchangeClient(exchange_api_base, email, password)
 
     return exchange_client
 
@@ -247,12 +249,46 @@ def send_email(body):
         print("Email sent! Message ID:"),
         print(response['MessageId'])
 
+def get_secret(secret_name):
+
+    session = boto3.session.Session()
+    client = session.client(
+        service_name='secretsmanager'
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            print("The requested secret " + secret_name + " was not found")
+        elif e.response['Error']['Code'] == 'InvalidRequestException':
+            print("The request was invalid due to:", e)
+        elif e.response['Error']['Code'] == 'InvalidParameterException':
+            print("The request had invalid params:", e)
+        elif e.response['Error']['Code'] == 'DecryptionFailure':
+            print("The requested secret can't be decrypted using the provided KMS key:", e)
+        elif e.response['Error']['Code'] == 'InternalServiceError':
+            print("An error occurred on service side:", e)
+    else:
+        # Secrets Manager decrypts the secret value using the associated KMS CMK
+        # Depending on whether the secret was a string or binary, only one of these fields will be populated
+        if 'SecretString' in get_secret_value_response:
+            text_secret_data = get_secret_value_response['SecretString']
+        else:
+            binary_secret_data = get_secret_value_response['SecretBinary']
+
+    return json.loads(get_secret_value_response['SecretString'])
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    exchange_client = login()
+    creds = get_secret("kalshi_credentials")
+    print(f"Creds {creds}")
+    exchange_client = login(creds['kalshi_username'], creds['kalshi_password'])
     market_id = create_sp_market_id(run_date=datetime.date.today())
     markets = check_for_markets_under_x_cents(0.15, market_id)
-    print(markets)
+    markets = [(x['subtitle'], x['no_ask']) for x in markets]
     send_email(str(markets))
 
 
