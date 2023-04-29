@@ -1,7 +1,7 @@
 
 import datetime
 from getpass import getpass
-from src.kalshi.kalshi import ExchangeClient
+from kalshi import ExchangeClient
 import logging
 import uuid
 import calendar
