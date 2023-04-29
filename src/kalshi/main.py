@@ -8,6 +8,8 @@ import calendar
 from typing import Optional
 import yfinance as yf
 import boto3
+from botocore.exceptions import ClientError
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -185,6 +187,64 @@ def send_text():
     sns = boto3.client('sns')
     number = '+18049298620'
     sns.publish(PhoneNumber=number, Message='example text message')
+
+def send_email(body):
+    SENDER = "ferraioloj@gmail.com"
+
+    # Replace recipient@example.com with a "To" address. If your account
+    # is still in the sandbox, this address must be verified.
+    RECIPIENT = "ferraioloj@gmail.com"
+
+    # The subject line for the email.
+    SUBJECT = "Amazon SES Test (SDK for Python)"
+
+    # The email body for recipients with non-HTML email clients.
+    BODY_TEXT = body
+
+    # The HTML body of the email.
+    BODY_HTML = """<html>
+    </html>
+                """
+
+    # The character encoding for the email.
+    CHARSET = "UTF-8"
+
+    # Create a new SES resource and specify a region.
+    client = boto3.client('ses')
+
+    # Try to send the email.
+    try:
+        # Provide the contents of the email.
+        response = client.send_email(
+            Destination={
+                'ToAddresses': [
+                    RECIPIENT,
+                ],
+            },
+            Message={
+                'Body': {
+                    'Html': {
+                        'Charset': CHARSET,
+                        'Data': BODY_HTML,
+                    },
+                    'Text': {
+                        'Charset': CHARSET,
+                        'Data': BODY_TEXT,
+                    },
+                },
+                'Subject': {
+                    'Charset': CHARSET,
+                    'Data': SUBJECT,
+                },
+            },
+            Source=SENDER
+        )
+    # Display an error if something goes wrong.
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        print("Email sent! Message ID:"),
+        print(response['MessageId'])
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
