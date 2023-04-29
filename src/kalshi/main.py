@@ -252,7 +252,7 @@ if __name__ == '__main__':
     market_id = create_sp_market_id(run_date=datetime.date.today())
     markets = check_for_markets_under_x_cents(0.15, market_id)
     print(markets)
-    send_text()
+    send_email(str(markets))
 
 
 
