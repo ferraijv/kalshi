@@ -7,6 +7,7 @@ import uuid
 import calendar
 from typing import Optional
 import yfinance as yf
+import boto3
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -174,12 +175,25 @@ def get_likelihood_of_similar_change(data, percentage_window):
     df = data[(data["percentage_change"] >= percentage_window[0]) & (data["percentage_change"] <= percentage_window[1])]
     return len(df.index)/len(data.index)
 
+def check_for_markets_under_x_cents(threshold, event_id):
+    event_id = 'INXD-23MAY01'
+    markets = exchange_client.get_event(event_id)['markets']
+    markets = [x for x in markets if x['no_ask'] < threshold]
+    return markets
+
+def send_text():
+    sns = boto3.client('sns')
+    number = '+18049298620'
+    sns.publish(PhoneNumber=number, Message='example text message')
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    sp_data = get_s_and_p_data()
-    sp_data = create_day_of_week(sp_data)
-    data = get_sp_percentage_change(sp_data)
-    get_likelihood_of_similar_change(data, (1.0, 1.04))
+    exchange_client = login()
+    market_id = create_sp_market_id(run_date=datetime.date.today())
+    markets = check_for_markets_under_x_cents(0.15, market_id)
+    print(markets)
+    send_text()
+
 
 
 
