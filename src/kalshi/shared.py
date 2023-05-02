@@ -132,7 +132,6 @@ def create_sp_market_id(run_date = datetime.date.today()):
         market_id = f"INXD-{run_date_formatted}"
 
     logging.debug(f"Market ID: {market_id}")
-    market_id = "INXD-23MAY01" # testing
     return market_id
 
 def cancel_all_orders_for_market(market_id):
