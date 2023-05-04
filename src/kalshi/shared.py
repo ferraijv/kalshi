@@ -178,3 +178,41 @@ def sell_all_contracts_for_market(market_id):
     send_email(f"Sold orders created: {str(contracts_sold)}")
 
 
+def check_for_fulfilled_orders(market_id):
+    exchange_client = login()
+    fulfilled_orders = []
+    for event in exchange_client.get_positions(event_ticker=market_id)['market_positions']:
+        print(event)
+        if event["total_traded"] > 0 and event["resting_orders_count"] == 0:
+            fulfilled_orders.append(event)
+
+    return fulfilled_orders
+
+def create_no_orders_for_every_contract_in_market(
+        market_id: str,
+        exclude_tickers: list,
+        limit_price: Optional[int] = 15
+):
+    """
+    Create no order for every contract in a given market
+    events dict: dictionary of events for particular market
+    limit_price int: integer for number of cents for limit price
+    """
+
+    exchange_client = login()
+    events = exchange_client.get_event(market_id)
+
+    order_params = {
+        "action": "buy",
+        "type": "limit",
+        "side": "no",
+        "count": 100,
+        "no_price": limit_price
+
+    }
+    for event in events['markets']:
+        if event['ticker'] not in exclude_tickers:
+            logging.info(f"Creating {order_params['action']} order for {event['ticker']} at {order_params['no_price']}")
+            exchange_client.create_order(ticker=event["ticker"], client_order_id=str(uuid.uuid4()), **order_params)
+
+    return True
