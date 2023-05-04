@@ -50,27 +50,6 @@ def create_limit_order_at_current_price_level(market_id):
     return True
 
 
-
-def check_current_order_status(current_positions, market_id):
-
-    # Check if no orders have been completed
-    if all([event['total_traded'] == 0 for event in current_positions]):
-        logging.debug("No orders completed. Canceling all orders")
-        cancel_all_orders_for_market(market_id)
-    # Check if one order was completed
-    if len([e['ticker'] for e in current_positions if e['resting_orders_count']==0 and e['total_traded'] > 0]) == 1:
-        logging.debug("One order was completed. No additional actions taken")
-    # Check if two or more orders completed
-    if len([e['ticker'] for e in current_positions if e['resting_orders_count']==0 and e['total_traded'] > 0]) > 1:
-        logging.debug("Two or more orders completed. Canceling all existing orders and replacing with new price")
-        cancel_all_orders_for_market(market_id)
-        create_limit_order_at_current_price_level(market_id)
-    # Check for one partial order
-    if len([e['ticker'] for e in current_positions if e['resting_orders_count'] > 0 and e['total_traded'] > 0]) == 1:
-        print("One partial order completed. Cancel all existing orders and sell contracts")
-        cancel_all_orders_for_market(market_id)
-        sell_all_contracts_for_market(market_id)
-
 def get_s_and_p_data():
     return yf.download('SPY', start='2023-01-01', end=datetime.date.today())
 
@@ -93,15 +72,10 @@ def get_likelihood_of_similar_change(data, percentage_window):
     return len(df.index)/len(data.index)
 
 def check_for_markets_under_x_cents(threshold, event_id):
-    event_id = 'INXD-23MAY01'
     markets = exchange_client.get_event(event_id)['markets']
     markets = [x for x in markets if x['no_ask'] < threshold]
     return markets
 
-def send_text():
-    sns = boto3.client('sns')
-    number = '+18049298620'
-    sns.publish(PhoneNumber=number, Message='example text message')
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
