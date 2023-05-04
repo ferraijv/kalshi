@@ -216,3 +216,16 @@ def create_no_orders_for_every_contract_in_market(
             exchange_client.create_order(ticker=event["ticker"], client_order_id=str(uuid.uuid4()), **order_params)
 
     return True
+
+
+def check_if_negative_risk_is_met_for_market(market_id):
+    exchange_client = login()
+    exposure = exchange_client.get_positions(event_ticker=market_id)['event_positions'][0]['event_exposure']
+    if exposure <= 0:
+        return True
+    elif exposure > 0:
+        return False
+    else:
+        raise Exception
+
+
