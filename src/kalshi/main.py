@@ -49,28 +49,6 @@ def create_limit_order_at_current_price_level(market_id):
 
     return True
 
-
-def get_s_and_p_data():
-    return yf.download('SPY', start='2023-01-01', end=datetime.date.today())
-
-def create_day_of_week(sp_data):
-    sp_data['day_of_week'] = sp_data.index.dayofweek
-    sp_data['year'] = sp_data.index.year
-    sp_data['week'] = sp_data.index.isocalendar().week
-    sp_data['year_week'] = sp_data['year'].astype(str) + sp_data['week'].astype(str)
-    return sp_data
-
-def get_sp_percentage_change(sp_data, day_of_week=1):
-    subset = sp_data[(sp_data['day_of_week'] == day_of_week) | (sp_data['day_of_week'] == 4)]
-    subset['friday_close'] = subset.groupby(["year_week"])['Close'].shift(-1)
-    subset = subset[(subset['day_of_week'] == day_of_week)]
-    subset['percentage_change'] = subset["Close"]/subset["friday_close"]
-    return subset
-
-def get_likelihood_of_similar_change(data, percentage_window):
-    df = data[(data["percentage_change"] >= percentage_window[0]) & (data["percentage_change"] <= percentage_window[1])]
-    return len(df.index)/len(data.index)
-
 def check_for_markets_under_x_cents(threshold, event_id):
     markets = exchange_client.get_event(event_id)['markets']
     markets = [x for x in markets if x['no_ask'] < threshold]
