@@ -52,28 +52,34 @@ def compare_likelihood_to_actual_price(likelihood, market):
     if yes_price < 10:
         if ratio > 3:
             print("Overpriced")
+            shared.buy_no_contract_at_market(market['ticker'], 10)
         elif ratio > .5 and ratio <= 3:
             print("Fairly priced")
         elif ratio <= .5:
             print("Underpriced")
+            shared.buy_yes_contract_at_market(market['ticker'], 10)
         else:
             raise Exception
     elif yes_price >= 10 and yes_price < 60:
         if ratio > 2:
             print("Overpriced")
+            shared.buy_no_contract_at_market(market['ticker'], 10)
         elif ratio > .6 and ratio <= 2:
             print("Fairly priced")
         elif ratio <= .6:
             print("Underpriced")
+            shared.buy_yes_contract_at_market(market['ticker'], 10)
         else:
             raise Exception
     elif yes_price >= 60:
         if ratio > 1.5:
             print("Overpriced")
+            shared.buy_no_contract_at_market(market['ticker'], 10)
         elif ratio > .8 and ratio <= 2:
             print("Fairly priced")
         elif ratio <= .8:
             print("Underpriced")
+            shared.buy_yes_contract_at_market(market['ticker'], 10)
         else:
             raise Exception
 
@@ -93,8 +99,9 @@ def determine_if_markets_in_event_are_fairly_priced(event, sp_data):
 
 
 if __name__ == '__main__':
-    market_id = shared.create_sp_market_id(run_date=datetime.date.today())
+    market_id = shared.create_weekly_sp_market_id()
+    print(f"Market ID: {market_id}")
     exchange_client = shared.login()
     sp_data = shared.get_s_and_p_data()
-    determine_if_markets_in_event_are_fairly_priced(exchange_client.get_event("INXW-23MAY12"), sp_data)
+    determine_if_markets_in_event_are_fairly_priced(exchange_client.get_event(market_id), sp_data)
 

@@ -135,6 +135,15 @@ def create_sp_market_id(run_date = datetime.date.today()):
     logging.debug(f"Market ID: {market_id}")
     return market_id
 
+def create_weekly_sp_market_id():
+    """ Create market id for S&P 500 market """
+    today = datetime.date.today()
+    friday = today + datetime.timedelta( (4-today.weekday()) % 7 )
+    friday_formatted = format_date(friday)
+    market_id = f"INXW-{friday_formatted}"
+
+    return market_id
+
 def cancel_all_orders_for_market(market_id):
     """ Iterates through each currently open order for a given market and decreases remaining count to 0 """
 
@@ -230,7 +239,7 @@ def check_if_negative_risk_is_met_for_market(market_id):
         raise Exception
 
 def get_s_and_p_data():
-    return yf.download('SPY', start='2022-01-01', end=datetime.date.today())
+    return yf.download('SPY', start='2020-01-01', end=datetime.date.today())
 
 def create_day_of_week(sp_data):
     sp_data['day_of_week'] = sp_data.index.dayofweek
@@ -255,3 +264,39 @@ def get_likelihood_of_similar_change(data, percentage_window):
 def get_current_day_of_week():
 
     return datetime.datetime.now().weekday()
+
+
+def buy_yes_contract_at_market(market_id, dollar_amount):
+    exchange_client = login()
+    market = exchange_client.get_market(market_id)['market']
+    yes_ask = market['yes_ask']
+    quantity = dollar_amount / (yes_ask / 100)
+
+    order_params = {
+        "action": "buy",
+        "type": "market",
+        "side": "yes",
+        "count": quantity,
+
+    }
+
+    print(f"Buying {quantity} shares of YES for {market_id}")
+    #exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
+
+def buy_no_contract_at_market(market_id, dollar_amount):
+    exchange_client = login()
+    market = exchange_client.get_market(market_id)['market']
+    print(f"Market: {market}")
+    no_ask = 1 - market['yes_bid']
+    quantity = dollar_amount / (no_ask / 100)
+
+    order_params = {
+        "action": "buy",
+        "type": "market",
+        "side": "no",
+        "count": quantity,
+
+    }
+
+    print(f"Buying {quantity} shares of NO for {market_id}")
+    #exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
