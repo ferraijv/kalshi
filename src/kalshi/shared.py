@@ -8,6 +8,7 @@ import datetime
 import logging
 import uuid
 import yfinance as yf
+import requests
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -144,6 +145,15 @@ def create_weekly_sp_market_id():
 
     return market_id
 
+def create_weekly_nasdaq_market_id():
+    """ Create market id for S&P 500 market """
+    today = datetime.date.today()
+    friday = today + datetime.timedelta( (4-today.weekday()) % 7 )
+    friday_formatted = format_date(friday)
+    market_id = f"NASDAQ100W-{friday_formatted}"
+
+    return market_id
+
 def cancel_all_orders_for_market(market_id):
     """ Iterates through each currently open order for a given market and decreases remaining count to 0 """
 
@@ -241,6 +251,9 @@ def check_if_negative_risk_is_met_for_market(market_id):
 def get_s_and_p_data():
     return yf.download('SPY', start='2020-01-01', end=datetime.date.today())
 
+def get_nasdaq_data():
+    return yf.download('QQQ', start='2020-01-01', end=datetime.date.today())
+
 def create_day_of_week(sp_data):
     sp_data['day_of_week'] = sp_data.index.dayofweek
     sp_data['year'] = sp_data.index.year
@@ -300,3 +313,9 @@ def buy_no_contract_at_market(market_id, dollar_amount):
 
     print(f"Buying {quantity} shares of NO for {market_id}")
     #exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
+
+def get_historical_intraday():
+    token = "645ff2d224baf5.85899343"
+    url = f"https://eodhistoricaldata.com/api/intraday/NDAQ.NASDAQ?api_token={token}&interval=1h"
+    res = requests.get(url)
+    return res
