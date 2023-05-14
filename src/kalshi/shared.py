@@ -262,8 +262,8 @@ def create_day_of_week(sp_data):
     return sp_data
 
 
-def get_sp_percentage_change(sp_data, day_of_week=1):
-    subset = sp_data[(sp_data['day_of_week'] == day_of_week) | (sp_data['day_of_week'] == 4)]
+def get_percentage_change(data, day_of_week=1):
+    subset = data[(data['day_of_week'] == day_of_week) | (data['day_of_week'] == 4)]
     subset['friday_close'] = subset.groupby(["year_week"])['Close'].shift(-1)
     subset = subset[(subset['day_of_week'] == day_of_week)]
     subset['percentage_change'] = subset["Close"]/subset["friday_close"]
@@ -315,7 +315,13 @@ def buy_no_contract_at_market(market_id, dollar_amount):
     #exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
 
 def get_historical_intraday():
-    token = "645ff2d224baf5.85899343"
     url = f"https://eodhistoricaldata.com/api/intraday/NDAQ.NASDAQ?api_token={token}&interval=1h"
     res = requests.get(url)
     return res
+
+
+def get_log_file_contents(log_file):
+    with open(log_file) as f:
+        lines = f.readlines()
+
+    return str(lines)
