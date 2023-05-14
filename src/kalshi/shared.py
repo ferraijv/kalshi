@@ -198,13 +198,18 @@ def sell_all_contracts_for_market(market_id):
     send_email(f"Sold orders created: {str(contracts_sold)}")
 
 
-def check_for_fulfilled_orders(market_id):
+def check_for_fulfilled_orders(event_id):
+    """
+    Creates list of completely fulfilled orders
+    :param str event_id: ID for the event to check for fulfilled orders
+    :return:
+    """
     exchange_client = login()
     fulfilled_orders = []
-    for event in exchange_client.get_positions(event_ticker=market_id)['market_positions']:
-        print(event)
-        if event["total_traded"] > 0 and event["resting_orders_count"] == 0:
-            fulfilled_orders.append(event)
+    for market in exchange_client.get_positions(event_ticker=event_id)['market_positions']:
+        print(market)
+        if market["total_traded"] > 0 and market["resting_orders_count"] == 0:
+            fulfilled_orders.append(market)
 
     return fulfilled_orders
 
@@ -238,9 +243,14 @@ def create_no_orders_for_every_contract_in_market(
     return True
 
 
-def check_if_negative_risk_is_met_for_market(market_id):
+def check_if_negative_risk_is_met_for_market(event_id):
+    """
+    Gets all positions in a given event and checks if negative risk has already been met
+    :param str event_id: Event id to check for negative risk
+    :return: boolean for whether negative risk has been met or not
+    """
     exchange_client = login()
-    exposure = exchange_client.get_positions(event_ticker=market_id)['event_positions'][0]['event_exposure']
+    exposure = exchange_client.get_positions(event_ticker=event_id)['event_positions'][0]['event_exposure']
     if exposure <= 0:
         return True
     elif exposure > 0:
@@ -254,15 +264,27 @@ def get_s_and_p_data():
 def get_nasdaq_data():
     return yf.download('QQQ', start='2020-01-01', end=datetime.date.today())
 
-def create_day_of_week(sp_data):
-    sp_data['day_of_week'] = sp_data.index.dayofweek
-    sp_data['year'] = sp_data.index.year
-    sp_data['week'] = sp_data.index.isocalendar().week
-    sp_data['year_week'] = sp_data['year'].astype(str) + sp_data['week'].astype(str)
-    return sp_data
+def create_day_of_week(data):
+    """
+    Creates various date variables in dataframe
+    :param df data: historical stock data
+    :return: df with date variables
+    """
+    data['day_of_week'] = data.index.dayofweek
+    data['year'] = data.index.year
+    data['week'] = data.index.isocalendar().week
+    data['year_week'] = data['year'].astype(str) + data['week'].astype(str)
+    return data
 
 
 def get_percentage_change(data, day_of_week=1):
+    """
+    Calculates the percentage change for historical data only for day of week specific (Always compares to Friday)
+
+    :param data: historical dataset
+    :param day_of_week: day of week that will be compared against Friday
+    :return: Returns dataframe containing all historical data for that day of week and the resulting change on Friday
+    """
     subset = data[(data['day_of_week'] == day_of_week) | (data['day_of_week'] == 4)]
     subset['friday_close'] = subset.groupby(["year_week"])['Close'].shift(-1)
     subset = subset[(subset['day_of_week'] == day_of_week)]
@@ -270,6 +292,13 @@ def get_percentage_change(data, day_of_week=1):
     return subset
 
 def get_likelihood_of_similar_change(data, percentage_window):
+    """
+    Determines what percentage of instances in the past fall in percentage change bucket
+
+    :param data: historical dataset with percentage change field
+    :param percentage_window: tuple containing two values representing the range
+    :return: percentage of times that event occurred
+    """
     df = data[(data["percentage_change"] >= percentage_window[0]) & (data["percentage_change"] <= percentage_window[1])]
     return len(df.index)/len(data.index)
 
@@ -314,13 +343,13 @@ def buy_no_contract_at_market(market_id, dollar_amount):
     print(f"Buying {quantity} shares of NO for {market_id}")
     #exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
 
-def get_historical_intraday():
-    url = f"https://eodhistoricaldata.com/api/intraday/NDAQ.NASDAQ?api_token={token}&interval=1h"
-    res = requests.get(url)
-    return res
-
-
 def get_log_file_contents(log_file):
+    """
+    Get contents of logfile as string
+
+    :param log_file:
+    :return:
+    """
     with open(log_file) as f:
         lines = f.readlines()
 
