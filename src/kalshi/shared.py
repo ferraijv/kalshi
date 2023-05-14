@@ -12,10 +12,12 @@ import requests
 
 logging.basicConfig(level=logging.DEBUG)
 
-def login():
+def login(use_demo=False):
     """ Prompt user for Kalshi login credentials and return exchange client """
     creds = get_secret("kalshi_credentials")
     exchange_api_base = "https://trading-api.kalshi.com/trade-api/v2"
+    if use_demo:
+        exchange_api_base = "https://demo-api.kalshi.co/trade-api/v2"
     exchange_client = ExchangeClient(exchange_api_base, creds['kalshi_username'], creds['kalshi_password'])
 
     return exchange_client
@@ -154,10 +156,10 @@ def create_weekly_nasdaq_market_id():
 
     return market_id
 
-def cancel_all_orders_for_market(market_id):
+def cancel_all_orders_for_market(market_id, use_demo=False):
     """ Iterates through each currently open order for a given market and decreases remaining count to 0 """
 
-    exchange_client = login()
+    exchange_client = login(use_demo)
     all_orders = exchange_client.get_orders(event_ticker=market_id)['orders']
     logging.debug(all_orders)
     orders_to_cancel = [(e['order_id'], e['remaining_count']) for e in all_orders if e['remaining_count'] > 0]
@@ -216,7 +218,8 @@ def check_for_fulfilled_orders(event_id):
 def create_no_orders_for_every_contract_in_market(
         market_id: str,
         exclude_tickers: list,
-        limit_price: Optional[int] = 15
+        limit_price: Optional[int] = 15,
+        use_demo=False
 ):
     """
     Create no order for every contract in a given market
@@ -224,7 +227,7 @@ def create_no_orders_for_every_contract_in_market(
     limit_price int: integer for number of cents for limit price
     """
 
-    exchange_client = login()
+    exchange_client = login(use_demo)
     events = exchange_client.get_event(market_id)
 
     order_params = {
