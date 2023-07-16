@@ -138,6 +138,19 @@ def create_sp_market_id(run_date = datetime.date.today()):
     logging.debug(f"Market ID: {market_id}")
     return market_id
 
+def create_nasdaq_event_id(run_date = datetime.date.today()):
+    """ Create market id for S&P 500 market """
+
+    run_date_formatted = format_date(run_date)
+    logging.debug(f"Day: {run_date.weekday()}")
+    if run_date.weekday() == 4:
+        event_id = f"NASDAQ100W-{run_date_formatted}"
+    else:
+        event_id = f"NASDAQ100D-{run_date_formatted}"
+
+    logging.debug(f"Market ID: {event_id}")
+    return event_id
+
 def create_weekly_sp_market_id():
     """ Create market id for S&P 500 market """
     today = datetime.date.today()
@@ -326,7 +339,7 @@ def buy_yes_contract_at_market(market_id, dollar_amount):
     }
 
     print(f"Buying {quantity} shares of YES for {market_id}")
-    #exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
+    exchange_client.create_order(market_id, client_order_id=str(uuid.uuid4()), **order_params)
 
 def buy_no_contract_at_market(market_id, dollar_amount):
     exchange_client = login()
@@ -357,3 +370,169 @@ def get_log_file_contents(log_file):
         lines = f.readlines()
 
     return str(lines)
+
+def get_percentage_change_for_market(current_price, market):
+    if market.get("floor_strike"):
+        lower_bound = market['floor_strike']/current_price
+    else:
+        lower_bound = 0
+    if market.get("cap_strike"):
+        upper_bound = market['cap_strike']/current_price
+    else:
+        upper_bound = 9999999
+
+    results = (lower_bound, upper_bound)
+
+    return results
+
+def get_sp_current_price():
+    return yf.download('^GSPC', start=datetime.date.today(), end=datetime.date.today())['Close'][0]
+
+def get_nasdaq_current_price():
+    return yf.download('^NDX', start=datetime.date.today(), end=datetime.date.today())['Close'][0]
+
+
+def get_likelihood(movement_range, data):
+    data = create_day_of_week(data)
+    historical = get_percentage_change(data)
+    res = historical[(historical['percentage_change'] > movement_range[0]) & (historical['percentage_change'] < movement_range[1])]
+    times_happened = len(res.index)
+    total_weeks = len(historical.index)
+
+    logging.info(f"Movement range: {movement_range}")
+    logging.info(f"Times occurred: {times_happened}")
+    logging.info(f"Total weeks: {total_weeks}")
+
+    return times_happened/total_weeks
+
+def compare_yes_likelihood_to_actual_price(likelihood, market):
+    logging.info(f"----------Yes Analysis for {market}----------")
+    yes_price = market['yes_ask']
+    likelihood = likelihood*100
+    if likelihood < 1.0 :
+        likelihood = 1.0
+    ratio = yes_price / likelihood
+    logging.info(f"Yes price: {yes_price}")
+    logging.info(f"Likelihood {likelihood}")
+    logging.info(f"Ratio: {ratio}")
+    if yes_price < 10:
+        if ratio > 3:
+            logging.info("Overpriced")
+        elif ratio > .5 and ratio <= 3:
+            logging.info("Fairly priced")
+        elif ratio <= .5 and ratio > 0:
+            logging.info("Underpriced")
+            buy_yes_contract_at_market(market['ticker'], 10)
+        elif ratio == 0:
+            logging.info("Ratio: 0")
+        else:
+            raise Exception
+    elif yes_price >= 10 and yes_price < 60:
+        if ratio > 2:
+            logging.info("Overpriced")
+        elif ratio > .6 and ratio <= 2:
+            logging.info("Fairly priced")
+        elif ratio <= .6 and ratio > 0:
+            logging.info("Underpriced")
+            buy_yes_contract_at_market(market['ticker'], 10)
+        elif ratio == 0:
+            logging.info("Ratio: 0")
+        else:
+            raise Exception
+    elif yes_price >= 60:
+        if ratio > 1.5:
+            logging.info("Overpriced")
+        elif ratio > .8 and ratio <= 2:
+            logging.info("Fairly priced")
+        elif ratio <= .8 and ratio > 0:
+            logging.info("Underpriced")
+            buy_yes_contract_at_market(market['ticker'], 10)
+        elif ratio == 0:
+            logging.info("Ratio: 0")
+        else:
+            raise Exception
+
+
+def compare_no_likelihood_to_actual_price(likelihood, market):
+    logging.info(f"----------No Analysis for {market}----------")
+    no_price = (1 - market['yes_bid']/100)*100
+    # Inverse likelihood because it's for no markets
+    likelihood = 1 - likelihood
+    likelihood = likelihood*100
+    if likelihood < 1.0 :
+        likelihood = 1.0
+    ratio = no_price / likelihood
+    logging.info(f"No price: {no_price}")
+    logging.info(f"Likelihood {likelihood}")
+    logging.info(f"Ratio: {ratio}")
+    if no_price < 10:
+        if ratio > 3:
+            logging.info("Overpriced")
+        elif ratio > .5 and ratio <= 3:
+            logging.info("Fairly priced")
+        elif ratio <= .5 and ratio > 0:
+            logging.info("Underpriced")
+            buy_no_contract_at_market(market['ticker'], 10)
+        elif ratio == 0:
+            logging.info("Ratio: 0")
+        else:
+            raise Exception
+    elif no_price >= 10 and no_price < 60:
+        if ratio > 2:
+            logging.info("Overpriced")
+        elif ratio > .6 and ratio <= 2:
+            logging.info("Fairly priced")
+        elif ratio <= .6 and ratio > 0:
+            logging.info("Underpriced")
+            buy_no_contract_at_market(market['ticker'], 10)
+        elif ratio == 0:
+            logging.info("Ratio: 0")
+        else:
+            raise Exception
+    elif no_price >= 60:
+        if ratio > 1.5:
+            logging.info("Overpriced")
+        elif ratio > .8 and ratio <= 2:
+            logging.info("Fairly priced")
+        elif ratio <= .8 and ratio > 0:
+            logging.info("Underpriced")
+            buy_no_contract_at_market(market['ticker'], 10)
+        elif ratio == 0:
+            logging.info("Ratio: 0")
+        else:
+            raise Exception
+
+
+def determine_if_markets_in_event_are_fairly_priced(event, data):
+    """
+    For each market in the event determines if market is fairly priced based on historical data. If market is
+    underpriced, it will purchase contracts
+    :param event: event data
+    :param data: historical data used to calculate likelihoods
+    :return:
+    """
+    markets = event['markets']
+    logging.info(markets)
+    current_price = get_nasdaq_current_price()
+    for market in markets:
+        logging.info("************* New analysis marker *************")
+        movement_range = get_percentage_change_for_market(current_price, market)
+        likelihood = get_likelihood(movement_range, data)
+        compare_yes_likelihood_to_actual_price(likelihood, market)
+        compare_no_likelihood_to_actual_price(likelihood, market)
+
+    return True
+
+
+def get_markets_with_yes_price_below_threshold(event_id, threshold, exclude_tickers, use_demo=False):
+    exchange_client = login(use_demo)
+    markets = exchange_client.get_event(event_id)['markets']
+    for market in markets:
+        if market['ticker'] not in exclude_tickers:
+            movement_range = get_percentage_change_for_market(get_nasdaq_current_price(), market)
+            print(movement_range)
+            if ((movement_range[0] > .99 and movement_range[0] < 1.01) \
+                    or (movement_range[1] > .99 and movement_range[1] < 1.01)):
+                if market['yes_ask'] < threshold:
+                    buy_yes_contract_at_market(market['ticker'], 10)
+
