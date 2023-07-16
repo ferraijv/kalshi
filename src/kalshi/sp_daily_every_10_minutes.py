@@ -2,6 +2,17 @@ import shared
 import datetime
 
 if __name__ == '__main__':
+    """
+    Every 10 mins:
+    
+    - Check for orders that have been completed
+    - If there are orders that have been completed:
+        - cancel all other orders for that market
+        - create no orders for every other event in that market
+        - If negeative risk 
+            - Cancel all orders for this market
+            - Create no orders for all events at higher price
+    """
     market_id = shared.create_sp_market_id(run_date=datetime.date.today())
     fulfilled_orders = shared.check_for_fulfilled_orders(market_id)
     # exclude markets that we already have positions in

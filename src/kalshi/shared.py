@@ -14,7 +14,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 def login(use_demo=False):
     """ Prompt user for Kalshi login credentials and return exchange client """
-    creds = get_secret("kalshi_credentials")
+    if use_demo:
+        creds = get_secret("kalshi_credentials_demo")
+    else:
+        creds = get_secret("kalshi_credentials")
     exchange_api_base = "https://trading-api.kalshi.com/trade-api/v2"
     if use_demo:
         exchange_api_base = "https://demo-api.kalshi.co/trade-api/v2"
