@@ -1,8 +1,5 @@
-from typing import Optional
-import kalshi
-import shared
+from kalshi.src.kalshi import shared
 import datetime
-import uuid
 import logging
 
 

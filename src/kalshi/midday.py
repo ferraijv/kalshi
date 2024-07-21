@@ -1,4 +1,4 @@
-import shared
+from kalshi.src.kalshi import shared
 import datetime
 
 if __name__ == '__main__':

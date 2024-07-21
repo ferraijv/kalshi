@@ -7,11 +7,8 @@
 """
 import logging
 
-import shared
+from kalshi.src.kalshi import shared
 import datetime
-import kalshi
-import yfinance as yf
-import pandas as pd
 
 
 def main():

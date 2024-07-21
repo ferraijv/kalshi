@@ -1,5 +1,5 @@
-import shared
-import datetime
+from kalshi.src.kalshi import shared
+
 
 def main():
     """

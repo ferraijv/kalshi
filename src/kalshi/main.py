@@ -2,9 +2,7 @@
 import datetime
 import logging
 import uuid
-import yfinance as yf
-import boto3
-import shared
+from kalshi.src.kalshi import shared
 
 logging.basicConfig(level=logging.DEBUG)
 
