@@ -1,4 +1,4 @@
-from kalshi import ExchangeClient
+from kalshi.src.kalshi.kalshi import ExchangeClient
 import calendar
 from typing import Optional
 from botocore.exceptions import ClientError
