@@ -130,7 +130,5 @@ def create_next_week_prediction():
     prediction = get_prediction(tsa_data)
     save_prediction(prediction)
 
-    return True
-
-create_next_week_prediction()
+    return prediction
 

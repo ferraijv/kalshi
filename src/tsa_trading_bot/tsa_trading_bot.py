@@ -1,4 +1,4 @@
-#from kalshi.src.kalshi import shared
+from kalshi.src.kalshi import shared
 import get_recent_tsa_data
 import create_next_week_prediction
 def main():
@@ -11,13 +11,10 @@ def main():
     get_recent_tsa_data()
 
     ## Create next week TSA prediction
-    create_next_week_prediction()
+    prediction = create_next_week_prediction()
 
-    ## Get current TSA prices
-
-    #### Determine what market to make trades
-
-    #### Enter market order
+    ## Email prediction result
+    shared.send_email(prediction)
 
 
 
