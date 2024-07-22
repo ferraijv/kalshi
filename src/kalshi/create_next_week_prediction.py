@@ -1,6 +1,7 @@
 import pandas as pd
 import datetime
 import json
+import logging
 
 def lag_passengers():
     """
@@ -97,26 +98,26 @@ def get_prediction(tsa_data):
     next_sunday = get_next_market_end()
     last_year = (next_sunday - datetime.timedelta(days=365)).strftime("%Y-%m-%d")
     last_years_passengers = tsa_data.loc[last_year]['passengers_7_day_moving_average']
-    print(last_years_passengers)
+    logging.warning(last_years_passengers)
     three_days_ago = (datetime.date.today() - datetime.timedelta(days=3)).strftime("%Y-%m-%d")
     yoy_adjustment = tsa_data.loc[three_days_ago]['last_weeks_trend']
-    print(yoy_adjustment)
+    logging.warning(yoy_adjustment)
     prediction = {}
     next_sunday = next_sunday.strftime("%Y-%m-%d")
     prediction[next_sunday] = last_years_passengers * yoy_adjustment
 
-    print(prediction)
+    logging.warning(prediction)
 
     return prediction
 
 def save_prediction(prediction):
-    print(prediction)
+    logging.warning(prediction)
     try:
         with open("data/tsa_traffic_predictions") as f:
             all_predictions = json.load(f)
-        print(f"all predictions {all_predictions}")
+        logging.warning(f"all predictions {all_predictions}")
         all_predictions.update(prediction)
-        print(f"new prediction {prediction}")
+        logging.warning(f"new prediction {prediction}")
         with open("data/tsa_traffic_predictions", "w") as outfile:
             json.dump(all_predictions, outfile)
     except FileNotFoundError:
@@ -131,4 +132,3 @@ def create_next_week_prediction():
     save_prediction(prediction)
 
     return prediction
-
