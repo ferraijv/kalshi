@@ -17,7 +17,7 @@ def lag_passengers():
     8. Calculate a 7-day moving average of the previous year's passenger data.
     """
     # Load TSA data
-    tsa_data = pd.read_csv("../data/tsa_data.csv", index_col=0)
+    tsa_data = pd.read_csv("data/tsa_data.csv", index_col=0)
 
     # Rename columns for clarity
     tsa_data.rename(columns={"Date": "date", "Numbers": "passengers"}, inplace=True)
@@ -112,15 +112,15 @@ def get_prediction(tsa_data):
 def save_prediction(prediction):
     print(prediction)
     try:
-        with open("../data/tsa_traffic_predictions") as f:
+        with open("data/tsa_traffic_predictions") as f:
             all_predictions = json.load(f)
         print(f"all predictions {all_predictions}")
         all_predictions.update(prediction)
         print(f"new prediction {prediction}")
-        with open("../data/tsa_traffic_predictions", "w") as outfile:
+        with open("data/tsa_traffic_predictions", "w") as outfile:
             json.dump(all_predictions, outfile)
     except FileNotFoundError:
-        with open("../data/tsa_traffic_predictions", "w") as outfile:
+        with open("data/tsa_traffic_predictions", "w") as outfile:
             json.dump(prediction, outfile)
 
 

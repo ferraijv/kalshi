@@ -79,6 +79,6 @@ def fetch_all_tsa_data():
 
     df_merged = pd.concat(dfs, ignore_index=True, sort=False)
 
-    df_merged.to_csv("../data/tsa_data.csv")
+    df_merged.to_csv("data/tsa_data.csv")
 
     return df_merged

@@ -26,7 +26,7 @@ def main():
     prediction = create_next_week_prediction()
 
     ## Email prediction result
-    shared.send_email(prediction)
+    shared.send_email(str(prediction))
 
 if __name__ == "__main__":
     main()
