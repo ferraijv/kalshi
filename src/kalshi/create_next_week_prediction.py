@@ -99,7 +99,7 @@ def get_prediction(tsa_data):
     last_year = (next_sunday - datetime.timedelta(days=365)).strftime("%Y-%m-%d")
     last_years_passengers = tsa_data.loc[last_year]['passengers_7_day_moving_average']
     logging.warning(last_years_passengers)
-    three_days_ago = (datetime.date.today() - datetime.timedelta(days=3)).strftime("%Y-%m-%d")
+    three_days_ago = (datetime.date.today() - datetime.timedelta(days=4)).strftime("%Y-%m-%d")
     yoy_adjustment = tsa_data.loc[three_days_ago]['last_weeks_trend']
     logging.warning(yoy_adjustment)
     prediction = {}
