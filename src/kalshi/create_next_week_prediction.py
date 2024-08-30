@@ -23,15 +23,32 @@ def lag_passengers():
     # Rename columns for clarity
     tsa_data.rename(columns={"Date": "date", "Numbers": "passengers"}, inplace=True)
 
-    # Convert date column to datetime format
+    # Prepare for day of week YoY shift
     tsa_data['date'] = pd.to_datetime(tsa_data['date'], format='%m/%d/%Y')
+
+    tsa_data['day_of_week'] = tsa_data['date'].dt.day_name()
+
+    tsa_data['week_number'] = tsa_data['date'].dt.isocalendar().week
+
+    tsa_data['year'] = tsa_data['date'].dt.year
+
+    tsa_data['last_year_date'] = pd.to_datetime(
+        (tsa_data['year']-1).astype(str) + "-" + tsa_data['week_number'].astype(str) + "-" + tsa_data['day_of_week'],
+        format='%Y-%W-%A'
+    )
+
+    tsa_data = tsa_data.merge(
+        tsa_data[['date', 'passengers', 'day_of_week']],
+        left_on='last_year_date',
+        right_on='date',
+        suffixes=('', '_last_year')
+    )
+
+    tsa_data.rename(columns={"passengers_last_year": "previous_year"}, inplace=True)
 
     # Set the date column as the index and sort the index
     tsa_data = tsa_data.set_index('date')
     tsa_data.sort_index(inplace=True)
-
-    # Create a new column with passenger data from the previous year
-    tsa_data['previous_year'] = tsa_data['passengers'].shift(365)
 
     # Filter data to include only dates after June 1, 2022
     tsa_data = tsa_data[tsa_data.index > '2022-06-01']
@@ -63,6 +80,8 @@ def get_recent_trend(tsa_data):
     # Generate predictions using the previous year's 7-day moving average and the lagged trend
     tsa_data['prediction'] = tsa_data['passengers_7_day_moving_average_previous_year'] * tsa_data['last_weeks_trend']
 
+    tsa_data.to_csv("data/lagged_tsa_data.csv")
+
     return tsa_data
 
 
@@ -82,6 +101,31 @@ def get_next_market_end():
     next_sunday = today + datetime.timedelta(days=days_until_sunday)
     return next_sunday
 
+def get_max_date(tsa_data):
+    most_recent_date = tsa_data.index.max()
+
+    logging.warning(f"Using {most_recent_date} as most recent date")
+
+    return most_recent_date
+
+def get_same_date_last_year_day_of_week_adjusted(current_year_date):
+    import calendar
+
+    year = current_year_date.year
+    week_number = current_year_date.isocalendar().week
+    day_name = calendar.day_name[current_year_date.weekday()]
+
+    # Last year
+    year = year-1
+
+    new_date = str(year)+"-"+str(week_number)+"-"+day_name
+
+    day_of_week_adjusted_last_year = datetime.datetime.strptime(new_date, '%Y-%W-%A')
+
+    logging.warning(f"{current_year_date} entered as current date. {day_of_week_adjusted_last_year} output as same day of week last year")
+
+    return day_of_week_adjusted_last_year
+
 def get_prediction(tsa_data):
     """
     Generate a prediction for the next Sunday's TSA passenger numbers based on historical data and recent trends.
@@ -96,11 +140,13 @@ def get_prediction(tsa_data):
     :return: Dictionary with the date of the next Sunday as the key and the predicted number of passengers as the value.
     """
     next_sunday = get_next_market_end()
-    last_year = (next_sunday - datetime.timedelta(days=365)).strftime("%Y-%m-%d")
+    last_year = get_same_date_last_year_day_of_week_adjusted(next_sunday).strftime("%Y-%m-%d")
     last_years_passengers = tsa_data.loc[last_year]['passengers_7_day_moving_average']
     logging.warning(last_years_passengers)
-    three_days_ago = (datetime.date.today() - datetime.timedelta(days=4)).strftime("%Y-%m-%d")
-    yoy_adjustment = tsa_data.loc[three_days_ago]['last_weeks_trend']
+
+    most_recent_date = get_max_date(tsa_data).strftime("%Y-%m-%d")
+
+    yoy_adjustment = tsa_data.loc[most_recent_date]['last_weeks_trend']
     logging.warning(yoy_adjustment)
     prediction = {}
     next_sunday = next_sunday.strftime("%Y-%m-%d")
