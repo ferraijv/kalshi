@@ -153,7 +153,8 @@ def get_prediction(tsa_data):
     prediction[next_sunday] = {
         "last_year_passengers": last_years_passengers,
         "yoy_adjustment": yoy_adjustment,
-        "prediction": last_years_passengers*yoy_adjustment
+        "prediction": last_years_passengers*yoy_adjustment,
+        "most_recent_date": most_recent_date
     }
 
     logging.warning(prediction)
