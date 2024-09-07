@@ -71,6 +71,9 @@ def get_recent_trend(tsa_data):
     3. Generate predictions using the previous year's 7-day moving average and the lagged trend.
     """
     # Calculate the current trend
+    tsa_data['current_trend_1_day'] = tsa_data['passengers'] / tsa_data[
+        'previous_year']
+
     tsa_data['current_trend'] = tsa_data['passengers_7_day_moving_average'] / tsa_data[
         'passengers_7_day_moving_average_previous_year']
 
@@ -146,7 +149,10 @@ def get_prediction(tsa_data):
 
     most_recent_date = get_max_date(tsa_data).strftime("%Y-%m-%d")
 
-    yoy_adjustment = tsa_data.loc[most_recent_date]['last_weeks_trend']
+    yoy_adjustment = (
+            tsa_data.loc[most_recent_date]['current_trend']*.9 # Weight 7-day average heavier
+            +tsa_data.loc[most_recent_date]['current_trend_1_day']*.1 # Weight single day less
+    )
     logging.warning(yoy_adjustment)
     prediction = {}
     next_sunday = next_sunday.strftime("%Y-%m-%d")

@@ -1,7 +1,7 @@
 import shared
 from get_recent_tsa_data import fetch_all_tsa_data
 from create_next_week_prediction import create_next_week_prediction
-
+from get_current_tsa_market_prices import get_likelihoods_of_each_contract
 
 
 def main():
@@ -20,13 +20,16 @@ def main():
     """
 
     ## Get recent TSA data
-    fetch_all_tsa_data()
+    #fetch_all_tsa_data()
 
     ## Create next week TSA prediction
     prediction = create_next_week_prediction()
 
+    ## Retrieve current market prices from Kalshi
+    prices = get_likelihoods_of_each_contract(prediction)
+
     ## Email prediction result
-    shared.send_email(str(prediction))
+    shared.send_email(str(prediction)+" "+str(prices))
 
 if __name__ == "__main__":
     main()
