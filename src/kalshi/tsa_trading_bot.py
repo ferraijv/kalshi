@@ -21,7 +21,7 @@ def main():
     """
 
     ## Get recent TSA data
-    #fetch_all_tsa_data()
+    fetch_all_tsa_data()
 
     ## Create next week TSA prediction
     prediction = create_next_week_prediction()
@@ -30,8 +30,8 @@ def main():
     likelihoods = get_likelihoods_of_each_contract(prediction)
 
     ## Place orders
-    # If today is Monday (aka 0 of 6), then run the report
-    if datetime.date.today().weekday() == 6:
+    # If today is Monday (aka 0 of 6), then place trades
+    if datetime.date.today().weekday() == 0:
         orders = create_limit_orders_for_all_contracts(likelihoods)
 
     ## Email prediction result
