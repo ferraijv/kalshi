@@ -539,3 +539,23 @@ def get_markets_with_yes_price_below_threshold(event_id, threshold, exclude_tick
                 if market['yes_ask'] < threshold:
                     buy_yes_contract_at_market(market['ticker'], 10)
 
+def get_next_sunday(skip_today_if_sunday=False):
+    today = datetime.date.today()
+    # Calculate the number of days until the next Sunday (0 is Monday, 6 is Sunday)
+    days_until_sunday = (6 - today.weekday()) % 7
+    print(f"today: {days_until_sunday}")
+    # If today is Sunday, we want the next Sunday, so we add 7 days
+    if days_until_sunday == 0:
+        if skip_today_if_sunday:
+            days_until_sunday = 7
+        else:
+            days_until_sunday = 0
+    next_sunday = today + datetime.timedelta(days=days_until_sunday)
+    next_sunday = next_sunday.strftime("%y%b%d").upper()
+
+    return next_sunday
+
+def create_tsa_event_id(next_sunday):
+    event_id = f"TSAW-{next_sunday}"
+    print(event_id)
+    return event_id

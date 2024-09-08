@@ -2,34 +2,16 @@ import shared
 import datetime
 import pandas as pd
 
-def get_next_sunday():
-    today = datetime.date.today()
-    # Calculate the number of days until the next Sunday (0 is Monday, 6 is Sunday)
-    days_until_sunday = (6 - today.weekday()) % 7
-    print(f"today: {days_until_sunday}")
-    # If today is Sunday, we want the next Sunday, so we add 7 days
-    if days_until_sunday == 0:
-        days_until_sunday = 0
-    next_sunday = today + datetime.timedelta(days=days_until_sunday)
-    next_sunday = next_sunday.strftime("%y%b%d").upper()
-
-    return next_sunday
-
-def create_event_id(next_sunday):
-    event_id = f"TSAW-{next_sunday}"
-    print(event_id)
-    return event_id
-
 def get_floor_strike_and_prices(event_id):
     exchange_client = shared.login()
     df = pd.json_normalize(exchange_client.get_event(event_id)['markets'])
-    prices = df[['floor_strike', 'yes_ask', 'no_ask']]
+    prices = df[['ticker', 'floor_strike', 'yes_ask', 'no_ask']]
 
     return prices
 
 def get_current_market_prices():
-    next_sunday = get_next_sunday()
-    event_id = create_event_id(next_sunday)
+    next_sunday = shared.get_next_sunday()
+    event_id = shared.create_tsa_event_id(next_sunday)
 
     prices = get_floor_strike_and_prices(event_id)
 
@@ -73,7 +55,7 @@ def get_likelihood_of_no(prediction, floor_strike, historical_data):
 
 def get_likelihoods_of_each_contract(prediction):
 
-    next_sunday = datetime.datetime.strptime(get_next_sunday(), "%y%b%d").strftime("%Y-%m-%d")
+    next_sunday = datetime.datetime.strptime(shared.get_next_sunday(), "%y%b%d").strftime("%Y-%m-%d")
 
     prediction = prediction[next_sunday]['prediction']
 
@@ -89,18 +71,27 @@ def get_likelihoods_of_each_contract(prediction):
 
     prices = get_current_market_prices()
 
-    floor_strikes = list(prices['floor_strike'])
-    print(floor_strikes)
+    print(prices)
 
+    floor_strikes = prices[['ticker', 'floor_strike']].values.tolist()
+    print(f"floor strike: {floor_strikes}")
+
+    # floor_strike[0] is the ticker
+    # floor_strike[1] is the floor_strike
     for floor_strike in floor_strikes:
-        if prediction > floor_strike:
-            likelihoods[floor_strike] = {"yes": get_likelihood_of_yes(prediction, floor_strike, historical_data)}
-        elif prediction < floor_strike:
-            likelihoods[floor_strike] = {"no": get_likelihood_of_no(prediction, floor_strike, historical_data)}
+        if prediction > floor_strike[1]:
+            likelihoods[floor_strike[0]] = {
+                'floor_strike': floor_strike[1],
+                'side': "yes",
+                'true_value': get_likelihood_of_yes(prediction, floor_strike[1], historical_data)
+            }
+        elif prediction < floor_strike[1]:
+            likelihoods[floor_strike[0]] = {
+                'floor_strike': floor_strike[1],
+                "side": "no",
+                "true_value": get_likelihood_of_no(prediction, floor_strike[1], historical_data)
+            }
 
     print(likelihoods)
 
     return likelihoods
-
-
-

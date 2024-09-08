@@ -2,6 +2,7 @@ import pandas as pd
 import datetime
 import json
 import logging
+import shared
 
 def lag_passengers():
     """
@@ -87,23 +88,6 @@ def get_recent_trend(tsa_data):
 
     return tsa_data
 
-
-def get_next_market_end():
-    """
-    The Kalshi market always ends on Sunday. This function will determine the date of the next Sunday
-    and return the date in YYYY-MM-DD format.
-
-    :return: str
-    """
-    today = datetime.date.today()
-    # Calculate the number of days until the next Sunday (0 is Monday, 6 is Sunday)
-    days_until_sunday = (6 - today.weekday()) % 7
-    # If today is Sunday, we want the next Sunday, so we add 7 days
-    if days_until_sunday == 0:
-        days_until_sunday = 7
-    next_sunday = today + datetime.timedelta(days=days_until_sunday)
-    return next_sunday
-
 def get_max_date(tsa_data):
     most_recent_date = tsa_data.index.max()
 
@@ -142,7 +126,7 @@ def get_prediction(tsa_data):
     :param tsa_data: DataFrame containing TSA passenger data with necessary features.
     :return: Dictionary with the date of the next Sunday as the key and the predicted number of passengers as the value.
     """
-    next_sunday = get_next_market_end()
+    next_sunday = datetime.datetime.strptime(shared.get_next_sunday(), "%y%b%d")
     last_year = get_same_date_last_year_day_of_week_adjusted(next_sunday).strftime("%Y-%m-%d")
     last_years_passengers = tsa_data.loc[last_year]['passengers_7_day_moving_average']
     logging.warning(last_years_passengers)
