@@ -3,6 +3,20 @@ import datetime
 import pandas as pd
 
 def get_floor_strike_and_prices(event_id):
+    """
+    Fetch market data for a specific event and extract relevant pricing information.
+
+    This function logs into the exchange client, retrieves market data for the given event,
+    and normalizes the response into a pandas DataFrame. It then selects and returns the
+    'ticker', 'floor_strike', 'yes_ask', and 'no_ask' columns.
+
+    Parameters:
+    event_id (str or int): The ID of the event for which market data is being retrieved.
+
+    Returns:
+    pandas.DataFrame: A DataFrame containing the columns 'ticker', 'floor_strike', 'yes_ask',
+                      and 'no_ask' with corresponding market data for the event.
+    """
     exchange_client = shared.login()
     df = pd.json_normalize(exchange_client.get_event(event_id)['markets'])
     prices = df[['ticker', 'floor_strike', 'yes_ask', 'no_ask']]
@@ -54,6 +68,31 @@ def get_likelihood_of_no(prediction, floor_strike, historical_data):
 
 
 def get_likelihoods_of_each_contract(prediction):
+    """
+    Calculate the likelihood of each contract being correct based on a prediction and historical data.
+
+    This function retrieves the prediction for the upcoming Sunday, calculates the likelihood
+    of each contract's outcome (yes or no) using historical data, and compares it against current
+    market prices.
+
+    Steps:
+    1. Get the date of the next Sunday and extract the prediction value for that date.
+    2. Load historical TSA data, compute raw and percent error based on predictions, and filter out
+       missing values.
+    3. Retrieve current market prices and floor strike values.
+    4. For each contract, determine whether the prediction is above or below the floor strike.
+    5. Calculate the likelihood for either the "yes" or "no" side of the contract based on historical data.
+    6. Store the likelihoods for each contract in a dictionary and return it.
+
+    Parameters:
+    prediction (dict): A dictionary containing predictions for various dates, including the next Sunday.
+
+    Returns:
+    dict: A dictionary where each key is a contract ticker and the value is a dictionary containing:
+          - 'floor_strike': The floor strike value for the contract.
+          - 'side': The side of the contract ('yes' or 'no').
+          - 'true_value': The calculated likelihood of that side being correct.
+    """
 
     next_sunday = datetime.datetime.strptime(shared.get_next_sunday(), "%y%b%d").strftime("%Y-%m-%d")
 
@@ -62,7 +101,7 @@ def get_likelihoods_of_each_contract(prediction):
     print(f"Calculating likelihoods for {prediction}")
 
     historical_data = pd.read_csv("data/lagged_tsa_data.csv")
-    historical_data = historical_data[['passengers_7_day_moving_average', 'prediction']]
+    historical_data = historical_data[['passengers_7_day_moving_average', 'prediction', 'day_of_week']]
     historical_data = historical_data[~historical_data['prediction'].isna()]
     historical_data['raw_error'] = historical_data['passengers_7_day_moving_average'] - historical_data['prediction']
     historical_data['percent_error'] = historical_data['passengers_7_day_moving_average']/historical_data['prediction']-1

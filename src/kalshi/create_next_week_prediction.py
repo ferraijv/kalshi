@@ -78,8 +78,8 @@ def get_recent_trend(tsa_data):
     tsa_data['current_trend'] = tsa_data['passengers_7_day_moving_average'] / tsa_data[
         'passengers_7_day_moving_average_previous_year']
 
-    # Create a lagged trend feature (Use 2 weeks ago in case data isn't available for previous week
-    tsa_data['last_weeks_trend'] = tsa_data['current_trend'].shift(2)
+    # Create a lagged trend feature.
+    tsa_data['last_weeks_trend'] = tsa_data['current_trend'].shift(7)
 
     # Generate predictions using the previous year's 7-day moving average and the lagged trend
     tsa_data['prediction'] = tsa_data['passengers_7_day_moving_average_previous_year'] * tsa_data['last_weeks_trend']
