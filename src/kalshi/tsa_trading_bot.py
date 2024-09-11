@@ -33,6 +33,8 @@ def main():
     # If today is Monday (aka 0 of 6), then place trades
     if datetime.date.today().weekday() == 0:
         orders = create_limit_orders_for_all_contracts(likelihoods)
+    else:
+        orders = "No orders placed today"
 
     ## Email prediction result
     shared.send_email(str(prediction)+"\n"+str(likelihoods)+"\n"+str(orders))
