@@ -134,8 +134,8 @@ def get_prediction(tsa_data):
     most_recent_date = get_max_date(tsa_data).strftime("%Y-%m-%d")
 
     yoy_adjustment = (
-            tsa_data.loc[most_recent_date]['current_trend']*.9 # Weight 7-day average heavier
-            +tsa_data.loc[most_recent_date]['current_trend_1_day']*.1 # Weight single day less
+            tsa_data.loc[most_recent_date]['current_trend']*.8 # Weight 7-day average heavier
+            +tsa_data.loc[most_recent_date]['current_trend_1_day']*.2 # Weight single day less
     )
     logging.warning(yoy_adjustment)
     prediction = {}
