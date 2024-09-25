@@ -4,6 +4,7 @@ from create_next_week_prediction import create_next_week_prediction
 from get_current_tsa_market_prices import get_likelihoods_of_each_contract
 import datetime
 from place_tsa_orders import create_limit_orders_for_all_contracts
+import pandas as pd
 
 def main():
     """
@@ -29,10 +30,13 @@ def main():
     ## Retrieve current market prices from Kalshi
     likelihoods = get_likelihoods_of_each_contract(prediction)
 
-    ## Place orders
+    # Place orders
     # If today is Monday (aka 0 of 6), then place trades
     if datetime.date.today().weekday() == 0:
-        orders = create_limit_orders_for_all_contracts(likelihoods)
+        try:
+            orders = create_limit_orders_for_all_contracts(likelihoods)
+        except Exception:
+            orders = "No orders placed today"
     else:
         orders = "No orders placed today"
 
