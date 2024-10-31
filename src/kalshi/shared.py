@@ -18,7 +18,7 @@ def login(use_demo=False):
         creds = get_secret("kalshi_credentials_demo")
     else:
         creds = get_secret("kalshi_credentials")
-    exchange_api_base = "https://trading-api.kalshi.com/trade-api/v2"
+    exchange_api_base = "https://api.elections.kalshi.com/trade-api/v2"
     if use_demo:
         exchange_api_base = "https://demo-api.kalshi.co/trade-api/v2"
     exchange_client = ExchangeClient(exchange_api_base, creds['kalshi_username'], creds['kalshi_password'])
@@ -556,6 +556,6 @@ def get_next_sunday(skip_today_if_sunday=False):
     return next_sunday
 
 def create_tsa_event_id(next_sunday):
-    event_id = f"TSAW-{next_sunday}"
+    event_id = f"KXTSAW-{next_sunday}"
     print(event_id)
     return event_id

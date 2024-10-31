@@ -62,7 +62,17 @@ def lag_passengers():
 
     return tsa_data
 
-def get_recent_trend(tsa_data):
+def calculate_days_until_sunday(date_to_calculate=datetime.date.today()):
+    days_until_sunday = (6 - date_to_calculate.weekday()) % 7
+
+    logging.info(f"Days until Sunday: {days_until_sunday}")
+
+    if days_until_sunday == 0:
+        days_until_sunday = 6
+
+    return days_until_sunday+1  # Data is delayed by one day
+
+def get_recent_trend(tsa_data, use_weighting=False):
     """
     Calculate recent trends in TSA passenger data and create predictions based on these trends.
 
@@ -75,14 +85,23 @@ def get_recent_trend(tsa_data):
     tsa_data['current_trend_1_day'] = tsa_data['passengers'] / tsa_data[
         'previous_year']
 
+    tsa_data['current_trend_1_day_lagged'] = tsa_data['current_trend_1_day'].shift(1)
+
     tsa_data['current_trend'] = tsa_data['passengers_7_day_moving_average'] / tsa_data[
         'passengers_7_day_moving_average_previous_year']
 
     # Create a lagged trend feature.
-    tsa_data['last_weeks_trend'] = tsa_data['current_trend'].shift(7)
+    tsa_data['last_weeks_trend'] = tsa_data['current_trend'].shift(calculate_days_until_sunday())
 
     # Generate predictions using the previous year's 7-day moving average and the lagged trend
-    tsa_data['prediction'] = tsa_data['passengers_7_day_moving_average_previous_year'] * tsa_data['last_weeks_trend']
+    if use_weighting:
+        tsa_data['prediction'] = (
+                tsa_data['passengers_7_day_moving_average_previous_year']
+                * ((tsa_data['last_weeks_trend'] * .8) + (tsa_data['current_trend_1_day_lagged'] * .2))
+        )
+    else:
+        tsa_data['prediction'] = (
+                    tsa_data['passengers_7_day_moving_average_previous_year'] * tsa_data['last_weeks_trend'])
 
     tsa_data.to_csv("data/lagged_tsa_data.csv")
 
@@ -133,9 +152,13 @@ def get_prediction(tsa_data):
 
     most_recent_date = get_max_date(tsa_data).strftime("%Y-%m-%d")
 
+    day_7_trend = tsa_data.loc[most_recent_date]['current_trend']
+
+    day_1_trend = tsa_data.loc[most_recent_date]['current_trend_1_day']
+
     yoy_adjustment = (
-            tsa_data.loc[most_recent_date]['current_trend']*.8 # Weight 7-day average heavier
-            +tsa_data.loc[most_recent_date]['current_trend_1_day']*.2 # Weight single day less
+            day_7_trend*.8 # Weight 7-day average heavier
+            +day_1_trend*.2 # Weight single day less
     )
     logging.warning(yoy_adjustment)
     prediction = {}
@@ -143,8 +166,11 @@ def get_prediction(tsa_data):
     prediction[next_sunday] = {
         "last_year_passengers": last_years_passengers,
         "yoy_adjustment": yoy_adjustment,
+        "day_1_trend": day_1_trend,
+        "day_7_trend": day_7_trend,
         "prediction": last_years_passengers*yoy_adjustment,
-        "most_recent_date": most_recent_date
+        "most_recent_date": most_recent_date,
+        "days_until_sunday": calculate_days_until_sunday()
     }
 
     logging.warning(prediction)
@@ -168,7 +194,7 @@ def save_prediction(prediction):
 
 def create_next_week_prediction():
     tsa_data = lag_passengers()
-    tsa_data = get_recent_trend(tsa_data)
+    tsa_data = get_recent_trend(tsa_data, True)
     prediction = get_prediction(tsa_data)
     save_prediction(prediction)
 
