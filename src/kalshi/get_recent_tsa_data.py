@@ -51,9 +51,7 @@ def fetch_year_of_tsa_data(year_to_process):
 
     df = pd.read_html(r.text)[0]
 
-    if year_to_process == current_year:
-        df = df[['Date', str(current_year)]]
-        df = df.rename(columns={str(current_year): "Numbers"})
+    logging.warning(f"DF Structure: {df.head()}")
 
     return df
 

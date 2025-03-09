@@ -1,4 +1,4 @@
-from kalshi import ExchangeClient
+
 import calendar
 from typing import Optional
 from botocore.exceptions import ClientError
@@ -9,21 +9,53 @@ import logging
 import uuid
 import yfinance as yf
 import requests
+import os
+from dotenv import load_dotenv
+from cryptography.hazmat.primitives import serialization
+from clients import ExchangeClient
+
+
+
 
 logging.basicConfig(level=logging.DEBUG)
 
 def login(use_demo=False):
     """ Prompt user for Kalshi login credentials and return exchange client """
-    if use_demo:
-        creds = get_secret("kalshi_credentials_demo")
-    else:
-        creds = get_secret("kalshi_credentials")
-    exchange_api_base = "https://api.elections.kalshi.com/trade-api/v2"
-    if use_demo:
-        exchange_api_base = "https://demo-api.kalshi.co/trade-api/v2"
-    exchange_client = ExchangeClient(exchange_api_base, creds['kalshi_username'], creds['kalshi_password'])
 
-    return exchange_client
+    # Load environment variables from .env file
+    load_dotenv()
+
+    # Fetch the Key ID from the environment
+    KEYID = os.getenv("KALSHI_KEY_ID")
+
+    if not KEYID:
+        raise ValueError("KALSHI_KEY_ID is not set. Check your .env file.")
+    
+    # Get private key from AWS Secrets Manager
+    session = boto3.session.Session()
+    client = session.client('secretsmanager')
+    try:
+        secret_value = client.get_secret_value(SecretId='kalshi_api_key')
+        secret_key = secret_value['SecretString']
+    except ClientError as e:
+        raise Exception(f"Error retrieving private key from Secrets Manager: {str(e)}")
+# Load private key
+    try:
+        private_key = serialization.load_pem_private_key(
+            secret_key.encode('utf-8'),
+            password=None  # Provide a password if your key is encrypted
+        )
+    except Exception as e:
+        raise Exception(f"Error loading private key: {str(e)}")
+
+    # Initialize the Kalshi HTTP client
+    client = ExchangeClient(
+        exchange_api_base='https://api.elections.kalshi.com/trade-api/v2',
+        key_id=KEYID,
+        private_key=private_key
+    )
+    
+    return client
 
 def send_email(body):
     SENDER = "ferraioloj@gmail.com"

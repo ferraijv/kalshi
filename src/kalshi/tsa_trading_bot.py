@@ -22,7 +22,7 @@ def main():
     """
 
     ## Get recent TSA data
-    fetch_all_tsa_data()
+    #fetch_all_tsa_data()
 
     ## Create next week TSA prediction
     prediction = create_next_week_prediction()
