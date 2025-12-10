@@ -59,6 +59,7 @@ class MarketRow:
 
 
 SAMPLE_EVENT = {
+    "event_ticker": "NASDAQ100D-SAMPLE",
     "ticker": "NASDAQ100D-SAMPLE",
     "title": "Sample Nasdaq Daily",
     "markets": [
@@ -158,8 +159,25 @@ def render_price_history(symbol: str, lookback_days: int = 90) -> None:
 
 def load_event_from_api(exchange_client, event_id: str) -> Optional[dict]:
     try:
-        event = exchange_client.get_event(event_id)
-        return event.get("event") or event
+        payload = exchange_client.get_event(event_id)
+        if not payload:
+            return None
+
+        event = payload.get("event", {}) if isinstance(payload, dict) else {}
+        markets = payload.get("markets", []) if isinstance(payload, dict) else []
+
+        # Preserve both the canonical Kalshi name (event_ticker) and the legacy
+        # key (ticker) so downstream code can rely on either.
+        ticker = (
+            event.get("event_ticker")
+            or event.get("ticker")
+            or payload.get("event_ticker")
+            or payload.get("ticker")
+            or event_id
+        )
+
+        merged = {**event, "markets": markets, "event_ticker": ticker, "ticker": ticker}
+        return merged
     except Exception as exc:  # noqa: BLE001
         st.error(f"Unable to load event {event_id}: {exc}")
         return None
@@ -372,11 +390,15 @@ def main():
         if not event:
             return
 
-        st.success(f"Loaded {event.get('ticker')} – {event.get('title', 'No title')}")
+        st.success(
+            f"Loaded {event.get('event_ticker', event.get('ticker'))} – {event.get('title', 'No title')}"
+        )
         markets = get_market_rows(event)
         render_market_tables(markets)
         display_range_analysis(markets, options["current_price"])
-        render_backtest_panel(markets, event.get("ticker", options["event_id"]))
+        render_backtest_panel(
+            markets, event.get("event_ticker", event.get("ticker", options["event_id"]))
+        )
     else:
         st.info("Set the event ticker and click **Load markets** to begin.")
 
