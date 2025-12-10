@@ -46,7 +46,7 @@ class MarketRow:
     @classmethod
     def from_market(cls, market: dict) -> "MarketRow":
         return cls(
-            ticker=market.get("ticker", ""),
+            ticker=market.get("event_ticker", ""),
             subtitle=market.get("subtitle", ""),
             yes_bid=market.get("yes_bid"),
             yes_ask=market.get("yes_ask"),
@@ -114,6 +114,7 @@ def build_market_table(markets: Iterable[MarketRow]) -> pd.DataFrame:
 
 
 def get_market_rows(event: dict) -> List[MarketRow]:
+    print(f"Event: {event}")
     return [MarketRow.from_market(market) for market in event.get("markets", [])]
 
 
@@ -145,7 +146,7 @@ def display_range_analysis(markets: List[MarketRow], current_price: float) -> No
 def load_event_from_api(exchange_client, event_id: str) -> Optional[dict]:
     try:
         event = exchange_client.get_event(event_id)
-        return event.get("event") or event
+        return event
     except Exception as exc:  # noqa: BLE001
         st.error(f"Unable to load event {event_id}: {exc}")
         return None
@@ -227,8 +228,9 @@ def main():
         if not event:
             return
 
-        st.success(f"Loaded {event.get('ticker')} – {event.get('title', 'No title')}")
+        st.success(f"Loaded {event.get('event_ticker')} – {event.get('title', 'No title')}")
         markets = get_market_rows(event)
+        print(f"Markets: {markets}")
         render_market_tables(markets)
         display_range_analysis(markets, options["current_price"])
     else:
