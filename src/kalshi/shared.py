@@ -12,7 +12,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from cryptography.hazmat.primitives import serialization
-from clients import ExchangeClient
+from kalshi.clients import ExchangeClient
 
 
 

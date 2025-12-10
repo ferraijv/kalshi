@@ -143,6 +143,19 @@ def display_range_analysis(markets: List[MarketRow], current_price: float) -> No
         st.info("No strike information available to calculate movement ranges.")
 
 
+def render_price_history(symbol: str, lookback_days: int = 90) -> None:
+    try:
+        history = fetch_index_history(symbol, lookback_days)
+    except Exception:
+        return
+
+    closes = history.get("Close")
+    if closes is None or closes.empty:
+        return
+
+    st.line_chart(closes, height=200)
+
+
 def load_event_from_api(exchange_client, event_id: str) -> Optional[dict]:
     try:
         event = exchange_client.get_event(event_id)
@@ -167,7 +180,16 @@ def render_sidebar() -> dict:
     if datetime.date.today().weekday() == 4:
         default_event = shared.create_weekly_nasdaq_market_id()
 
-    event_id = st.sidebar.text_input("Event ticker", value=default_event)
+    preset = st.sidebar.selectbox(
+        "Quick pick event", ["None", default_event, shared.create_weekly_sp_market_id()], index=0,
+        help="Choose a preset for today's NASDAQ/S&P events or leave as None to type manually."
+    )
+
+    event_id = st.sidebar.text_input(
+        "Event ticker",
+        value=preset if preset != "None" else default_event,
+        key="event_ticker",
+    )
 
     current_price = st.sidebar.number_input(
         "Current index level for range math", value=18000.0, step=50.0
@@ -178,7 +200,14 @@ def render_sidebar() -> dict:
         " storing your private key PEM in the `kalshi_api_key` secret."
     )
 
-    return {"source": source, "event_id": event_id, "current_price": current_price}
+    refresh = st.sidebar.button("Refresh quotes from Kalshi", disabled=source != "Kalshi API")
+
+    return {
+        "source": source,
+        "event_id": event_id,
+        "current_price": current_price,
+        "force_refresh": refresh,
+    }
 
 
 def ensure_client(source: str):
@@ -194,6 +223,18 @@ def ensure_client(source: str):
         return client
 
 
+def render_connection_status(client) -> None:
+    if not client:
+        st.info("API mode disabled – using demo data.")
+        return
+
+    try:
+        status = client.get_exchange_status()
+        st.success(f"Connected to Kalshi ({status.get('status', 'ok')})")
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Connected, but unable to fetch exchange status: {exc}")
+
+
 def load_event(source: str, event_id: str, exchange_client) -> Optional[dict]:
     if source == "Demo":
         return SAMPLE_EVENT
@@ -202,12 +243,22 @@ def load_event(source: str, event_id: str, exchange_client) -> Optional[dict]:
         st.error("Exchange client unavailable; check credentials and try again.")
         return None
 
-    return load_event_from_api(exchange_client, event_id)
+    cache = st.session_state.setdefault("event_cache", {})
+    if not st.session_state.get("force_refresh") and event_id in cache:
+        return cache[event_id]
+
+    event = load_event_from_api(exchange_client, event_id)
+    if event:
+        cache[event_id] = event
+    st.session_state["force_refresh"] = False
+    return event
 
 
 def render_market_tables(markets: List[MarketRow]) -> None:
     st.subheader("All contracts")
     st.dataframe(build_market_table(markets), use_container_width=True)
+
+    st.caption(f"Quotes refreshed at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     threshold = st.slider("Highlight contracts with asks below", min_value=1, max_value=80, value=20)
     filtered = filter_by_price_threshold(markets, threshold)
@@ -291,6 +342,8 @@ def render_backtest_panel(markets: List[MarketRow], event_id: str) -> None:
         "floor/cap strike range using historical data."
     )
 
+    render_price_history(symbol)
+
     if st.button("Run backtest", key="backtest"):
         with st.spinner("Running backtest..."):
             try:
@@ -303,13 +356,16 @@ def render_backtest_panel(markets: List[MarketRow], event_id: str) -> None:
             if results.empty:
                 st.warning("Not enough data to compute backtest results.")
             else:
-                st.dataframe(results, use_container_width=True)
+                st.dataframe(results.sort_values(by="Win Rate", ascending=False), use_container_width=True)
+                st.bar_chart(results.set_index("Ticker")["Win Rate"])
 
 
 def main():
     show_header()
     options = render_sidebar()
+    st.session_state["force_refresh"] = options.get("force_refresh", False)
     exchange_client = ensure_client(options["source"])
+    render_connection_status(exchange_client)
 
     if st.button("Load markets", type="primary"):
         event = load_event(options["source"], options["event_id"], exchange_client)

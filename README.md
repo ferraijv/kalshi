@@ -50,6 +50,6 @@ PYTHONPATH=src streamlit run src/kalshi/ui.py
 
 3. Data sources:
    - **Demo** mode: shows sample Nasdaq 100 daily contracts with mock quotes.
-   - **Kalshi API**: pulls your live markets after authenticating with `KALSHI_KEY_ID` and a private key stored in the `kalshi_api_key` secret in AWS Secrets Manager.
+   - **Kalshi API**: pulls your live markets after authenticating with `KALSHI_KEY_ID` and a private key stored in the `kalshi_api_key` secret in AWS Secrets Manager. The sidebar includes quick-pick tickers for today's NASDAQ and S&P events plus a refresh button for real-time quotes.
 
-4. Backtesting: after loading an event, scroll to the **Backtest strike ranges** section, pick an underlying (e.g., `^NDX` or `^GSPC`), and run a historical check that measures how often the index stayed within each contract's floor/cap range over the chosen lookback window.
+4. Backtesting: after loading an event, scroll to the **Backtest strike ranges** section, pick an underlying (e.g., `^NDX` or `^GSPC`), and run a historical check that measures how often the index stayed within each contract's floor/cap range over the chosen lookback window. Recent index closes are plotted for context, and win rates are ranked with a chart for easy comparison.
