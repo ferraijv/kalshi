@@ -29,6 +29,25 @@ we can buy yes when the market is "undervaluing" certain brackets and buy no whe
 the market is overvaluing certain brackets
 
 ## Infrastructure
-Currently, the trading bot is living on an EC2 instance that starts up at the 
-beginning of each trading day. There are python scripts scheduled with cron to 
+Currently, the trading bot is living on an EC2 instance that starts up at the
+beginning of each trading day. There are python scripts scheduled with cron to
 run at regular intervals.
+
+## UI (Streamlit)
+You can explore markets and basic strike ranges using the Streamlit dashboard.
+
+1. Install dependencies (ideally in a virtualenv):
+
+```
+pip install -r requirements.txt
+```
+
+2. Start the app (from the repository root):
+
+```
+PYTHONPATH=src streamlit run src/kalshi/ui.py
+```
+
+3. Choose **Demo** mode for mock data, or **Kalshi API** to pull live data once
+   you have `KALSHI_KEY_ID` exported and your private key stored in the
+   `kalshi_api_key` secret in AWS Secrets Manager.
