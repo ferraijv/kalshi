@@ -1,4 +1,4 @@
-from src.kalshi import shared, kalshi
+from src.kalshi import shared
 import datetime
 
 
