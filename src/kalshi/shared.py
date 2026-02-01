@@ -50,6 +50,22 @@ def login(use_demo=False):
     
     return client
 
+def _format_email(body: str) -> tuple[str, str, str]:
+    """Return (subject, text_body, html_body) with simple styling."""
+    subject = "Kalshi Bot Update"
+    text_body = body
+    html_body = f"""
+    <html>
+      <body style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0b1622; line-height: 1.5; padding: 16px;">
+        <h2 style="margin: 0 0 12px 0; color: #0b5cab;">Kalshi Bot Update</h2>
+        <p style="margin: 0 0 16px 0; color: #4a5560;">Automated status from your trading scripts.</p>
+        <pre style="background: #f6f8fb; padding: 12px 14px; border-radius: 8px; border: 1px solid #e3e7ee; white-space: pre-wrap; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; margin: 0;">{body}</pre>
+      </body>
+    </html>
+    """
+    return subject, text_body, html_body
+
+
 def send_email(body):
     cfg = load_config()
     if not cfg.email_sender or not cfg.email_recipient:
@@ -59,16 +75,7 @@ def send_email(body):
     SENDER = cfg.email_sender
     RECIPIENT = cfg.email_recipient
 
-    SUBJECT = "Kalshi Bot Update"
-
-    # The email body for recipients with non-HTML email clients.
-    BODY_TEXT = body
-
-    # The HTML body of the email.
-    BODY_HTML = f"""<html>
-    {body}
-    </html>
-                """
+    SUBJECT, BODY_TEXT, BODY_HTML = _format_email(body)
 
     # The character encoding for the email.
     CHARSET = "UTF-8"

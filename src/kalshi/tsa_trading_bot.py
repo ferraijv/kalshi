@@ -27,32 +27,47 @@ def _ensure_imports():
 
 _ensure_imports()
 
+def _format_email(prediction: dict, likelihoods: dict, orders) -> str:
+    """Create a readable plaintext summary for email."""
+    # prediction dict is keyed by date string
+    date_key = next(iter(prediction))
+    pred = prediction[date_key]
+    def as_float(val):
+        try:
+            return float(val)
+        except Exception:
+            return val
+
+    summary_lines = [
+        f"Prediction date: {date_key}",
+        f"Predicted passengers: {as_float(pred.get('prediction', 0)):,}",
+        f"YoY adj: {as_float(pred.get('yoy_adjustment', 0)):.3f}",
+        f"Day-1 trend: {as_float(pred.get('day_1_trend', 0)):.3f}",
+        f"Day-7 trend: {as_float(pred.get('day_7_trend', 0)):.3f}",
+        f"Last year (same weekday avg): {as_float(pred.get('last_year_passengers', 0)):,}",
+        f"Days until Sunday: {pred.get('days_until_sunday')}",
+        f"Most recent data date: {pred.get('most_recent_date')}",
+        "",
+        "Contract likelihoods (sorted by floor_strike):",
+    ]
+
+    rows = []
+    for ticker, info in sorted(likelihoods.items(), key=lambda x: x[1].get("floor_strike", 0)):
+        rows.append(
+            f"{ticker:<18} | strike={info.get('floor_strike')} | side={info.get('side')} | value={as_float(info.get('true_value', 0)):.3f}"
+        )
+
+    order_line = orders if isinstance(orders, str) else str(orders)
+
+    return "\n".join(summary_lines + rows + ["", "Orders:", order_line])
+
+
 def main():
-    """
-    Main function to execute the TSA traffic prediction workflow.
-
-    This function performs the following steps:
-    1. Retrieves the most recent TSA traffic data.
-    2. Generates a prediction for the TSA traffic for the next week based on the retrieved data.
-    3. Sends an email containing the prediction result.
-
-    The function does not return any value.
-
-    Usage:
-    This function is typically called when running the script directly. It will execute the entire workflow for TSA traffic prediction and result notification.
-    """
-
-    ## Get recent TSA data
+    """Run TSA workflow, format a clean email, and send it."""
     fetch_all_tsa_data()
-
-    ## Create next week TSA prediction
     prediction = create_next_week_prediction()
-
-    ## Retrieve current market prices from Kalshi
     likelihoods = get_likelihoods_of_each_contract(prediction)
 
-    # Place orders
-    # If today is Monday (aka 0 of 6), then place trades
     if datetime.date.today().weekday() == 0:
         try:
             orders = create_limit_orders_for_all_contracts(likelihoods)
@@ -61,9 +76,8 @@ def main():
     else:
         orders = "No orders placed today"
 
-    ## Email prediction result
-    shared.send_email(str(prediction)+"\n"+str(likelihoods)+"\n"+str(orders))
+    body = _format_email(prediction, likelihoods, orders)
+    shared.send_email(body)
 
 if __name__ == "__main__":
     main()
-
