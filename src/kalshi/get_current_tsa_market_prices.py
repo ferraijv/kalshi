@@ -1,6 +1,7 @@
-import shared
+from kalshi import shared
 import datetime
 import pandas as pd
+from pathlib import Path
 
 def get_floor_strike_and_prices(event_id):
     """
@@ -100,7 +101,8 @@ def get_likelihoods_of_each_contract(prediction):
 
     print(f"Calculating likelihoods for {prediction}")
 
-    historical_data = pd.read_csv("data/lagged_tsa_data.csv")
+    data_path = Path(__file__).resolve().parents[1] / "data" / "lagged_tsa_data.csv"
+    historical_data = pd.read_csv(data_path)
     historical_data = historical_data[['passengers_7_day_moving_average', 'prediction', 'day_of_week']]
     historical_data = historical_data[~historical_data['prediction'].isna()]
     historical_data['raw_error'] = historical_data['passengers_7_day_moving_average'] - historical_data['prediction']

@@ -9,10 +9,9 @@ import logging
 import uuid
 import yfinance as yf
 import requests
-import os
-from dotenv import load_dotenv
 from cryptography.hazmat.primitives import serialization
-from clients import ExchangeClient
+from kalshi.clients import ExchangeClient
+from kalshi.config import load_config
 
 
 
@@ -22,20 +21,14 @@ logging.basicConfig(level=logging.DEBUG)
 def login(use_demo=False):
     """ Prompt user for Kalshi login credentials and return exchange client """
 
-    # Load environment variables from .env file
-    load_dotenv()
-
-    # Fetch the Key ID from the environment
-    KEYID = os.getenv("KALSHI_KEY_ID")
-
-    if not KEYID:
-        raise ValueError("KALSHI_KEY_ID is not set. Check your .env file.")
+    cfg = load_config()
+    KEYID = cfg.key_id
     
     # Get private key from AWS Secrets Manager
-    session = boto3.session.Session()
+    session = boto3.session.Session(region_name=cfg.aws_region)
     client = session.client('secretsmanager')
     try:
-        secret_value = client.get_secret_value(SecretId='kalshi_api_key')
+        secret_value = client.get_secret_value(SecretId=cfg.private_key_secret)
         secret_key = secret_value['SecretString']
     except ClientError as e:
         raise Exception(f"Error retrieving private key from Secrets Manager: {str(e)}")
@@ -58,14 +51,15 @@ def login(use_demo=False):
     return client
 
 def send_email(body):
-    SENDER = "ferraioloj@gmail.com"
+    cfg = load_config()
+    if not cfg.email_sender or not cfg.email_recipient:
+        logging.warning("EMAIL_SENDER/EMAIL_RECIPIENT not set; skipping email send.")
+        return None
 
-    # Replace recipient@example.com with a "To" address. If your account
-    # is still in the sandbox, this address must be verified.
-    RECIPIENT = "ferraioloj@gmail.com"
+    SENDER = cfg.email_sender
+    RECIPIENT = cfg.email_recipient
 
-    # The subject line for the email.
-    SUBJECT = "Amazon SES Test (SDK for Python)"
+    SUBJECT = "Kalshi Bot Update"
 
     # The email body for recipients with non-HTML email clients.
     BODY_TEXT = body
@@ -80,7 +74,7 @@ def send_email(body):
     CHARSET = "UTF-8"
 
     # Create a new SES resource and specify a region.
-    client = boto3.client('ses')
+    client = boto3.client('ses', region_name=cfg.aws_region)
 
     # Try to send the email.
     try:

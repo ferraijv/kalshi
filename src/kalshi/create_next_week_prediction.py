@@ -2,7 +2,7 @@ import pandas as pd
 import datetime
 import json
 import logging
-import shared
+from kalshi import shared
 
 def lag_passengers():
     """
@@ -18,8 +18,12 @@ def lag_passengers():
     7. Calculate a 7-day moving average of the number of passengers.
     8. Calculate a 7-day moving average of the previous year's passenger data.
     """
-    # Load TSA data
-    tsa_data = pd.read_csv("data/tsa_data.csv", index_col=0)
+    # Load TSA data (path relative to repo root)
+    from pathlib import Path
+    data_path = Path(__file__).resolve().parents[1] / "data" / "tsa_data.csv"
+    if not data_path.exists():
+        raise FileNotFoundError(f"TSA data file not found at {data_path}. Populate it before running.")
+    tsa_data = pd.read_csv(data_path, index_col=0)
 
     # Rename columns for clarity
     tsa_data.rename(columns={"Date": "date", "Numbers": "passengers"}, inplace=True)
@@ -103,7 +107,10 @@ def get_recent_trend(tsa_data, use_weighting=False):
         tsa_data['prediction'] = (
                     tsa_data['passengers_7_day_moving_average_previous_year'] * tsa_data['last_weeks_trend'])
 
-    tsa_data.to_csv("data/lagged_tsa_data.csv")
+    from pathlib import Path
+    data_dir = Path(__file__).resolve().parents[1] / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    tsa_data.to_csv(data_dir / "lagged_tsa_data.csv")
 
     return tsa_data
 

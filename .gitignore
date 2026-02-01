@@ -1,0 +1,12 @@
+# Local environment and secrets
+.env
+
+# Bytecode / caches
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+
+# OS files
+.DS_Store

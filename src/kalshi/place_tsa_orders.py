@@ -1,4 +1,4 @@
-import shared
+from kalshi import shared
 import uuid
 
 def create_limit_orders_for_all_contracts(likelihoods):
