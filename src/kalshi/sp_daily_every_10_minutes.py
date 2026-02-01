@@ -1,4 +1,4 @@
-from kalshi.src.kalshi import shared
+from kalshi import shared
 import datetime
 
 if __name__ == '__main__':
@@ -27,5 +27,4 @@ if __name__ == '__main__':
         if shared.check_if_negative_risk_is_met_for_market(market_id):
             shared.cancel_all_orders_for_market(market_id)
             shared.create_no_orders_for_every_contract_in_market(market_id, markets_to_exclude, 80)
-
 

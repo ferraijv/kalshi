@@ -1,4 +1,4 @@
-from kalshi.src.kalshi import shared
+from kalshi import shared
 import datetime
 import logging
 
@@ -18,5 +18,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 

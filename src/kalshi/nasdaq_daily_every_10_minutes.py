@@ -1,4 +1,4 @@
-from kalshi.src.kalshi import shared
+from kalshi import shared
 
 
 def main():

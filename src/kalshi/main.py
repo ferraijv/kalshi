@@ -2,7 +2,7 @@
 import datetime
 import logging
 import uuid
-from kalshi.src.kalshi import shared
+from kalshi import shared
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -60,7 +60,6 @@ if __name__ == '__main__':
     markets = check_for_markets_under_x_cents(0.15, market_id)
     markets = [(x['subtitle'], x['no_ask']) for x in markets]
     shared.send_email(str(markets))
-
 
 
 
