@@ -13,7 +13,7 @@ This repository is a lightweight framework for building and running multiple Kal
   - `nasdaq_daily_every_10_minutes.py` – finds cheap NASDAQ daily contracts near 1% strike window and buys small YES positions.
   - `before_close.py` – after-close weekly NASDAQ scan using historical likelihood comparison; emails log.
   - `main.py` – sample entry that emails cheap S&P contracts under a price threshold.
-- TSA experiments (TSA traffic prediction and trading): `src/kalshi/get_recent_tsa_data.py`, `create_next_week_prediction.py`, `get_current_tsa_market_prices.py`, `place_tsa_orders.py`, `tsa_trading_bot.py`; a second copy lives in `src/tsa_trading_bot/` for legacy use.
+- TSA experiments (TSA traffic prediction and trading): `src/kalshi/get_recent_tsa_data.py`, `create_next_week_prediction.py`, `get_current_tsa_market_prices.py`, `place_tsa_orders.py`, `tsa_trading_bot.py`.
 - `src/analysis/analysis.py` – scratch file; currently just logs in.
 - Data sample: `src/data/historical_data.csv`.
 
