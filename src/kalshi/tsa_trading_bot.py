@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import datetime
 import pandas as pd
+import logging
 
 
 def _ensure_imports():
@@ -26,6 +27,25 @@ def _ensure_imports():
 
 
 _ensure_imports()
+
+def _init_logging():
+    """Configure run-specific log file under repo logs/."""
+    logs_dir = Path(__file__).resolve().parents[1] / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    logfile = logs_dir / f"tsa_bot_{timestamp}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[
+            logging.FileHandler(logfile, encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
+        ],
+        force=True,
+    )
+    logging.info("Logging initialized")
+    logging.info(f"Log file: {logfile}")
+    return logfile
 
 def _format_email(prediction: dict, likelihoods: dict, orders) -> str:
     """Create a readable plaintext summary for email."""
@@ -64,20 +84,30 @@ def _format_email(prediction: dict, likelihoods: dict, orders) -> str:
 
 def main():
     """Run TSA workflow, format a clean email, and send it."""
+    logfile = _init_logging()
+    logging.info("Starting TSA trading bot run")
+
     fetch_all_tsa_data()
     prediction = create_next_week_prediction()
     likelihoods = get_likelihoods_of_each_contract(prediction)
+    logging.info(f"Prediction keys: {list(prediction.keys())}")
+    logging.info(f"Computed likelihoods for {len(likelihoods)} contracts")
 
     if datetime.date.today().weekday() == 0:
         try:
             orders = create_limit_orders_for_all_contracts(likelihoods)
+            logging.info(f"Orders placed: {orders}")
         except Exception:
             orders = "No orders placed today"
+            logging.exception("Order placement failed")
     else:
         orders = "No orders placed today"
+        logging.info("Not Monday: skipping order placement")
 
     body = _format_email(prediction, likelihoods, orders)
     shared.send_email(body)
+    logging.info("Run complete; email sent")
+    logging.info(f"Log file for this run: {logfile}")
 
 if __name__ == "__main__":
     main()
