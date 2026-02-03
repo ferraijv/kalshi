@@ -77,6 +77,9 @@ def fetch_all_tsa_data():
 
     df_merged = pd.concat(dfs, ignore_index=True, sort=False)
 
-    df_merged.to_csv("data/tsa_data.csv")
+    from pathlib import Path
+    out_path = Path(__file__).resolve().parents[1] / "data" / "tsa_data.csv"
+    logging.warning(f"Writing TSA merged data to {out_path}")
+    df_merged.to_csv(out_path)
 
     return df_merged
