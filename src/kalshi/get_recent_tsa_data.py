@@ -3,6 +3,7 @@ import requests
 import datetime
 import logging
 import time
+from requests.exceptions import RequestException
 
 def create_request_url(year_to_process, current_year):
     """Create Request URL
@@ -27,7 +28,22 @@ def create_request_url(year_to_process, current_year):
     return url
 
 
-def fetch_year_of_tsa_data(year_to_process):
+def _request_with_retries(url: str, headers: dict, max_attempts: int = 4, base_delay: float = 1.0) -> requests.Response:
+    """Fetch a URL with simple exponential backoff."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            return resp
+        except RequestException as exc:
+            if attempt == max_attempts:
+                raise
+            sleep_for = base_delay * (2 ** (attempt - 1))
+            logging.warning(f"Fetch failed (attempt {attempt}/{max_attempts}) for {url}: {exc}. Retrying in {sleep_for:.1f}s")
+            time.sleep(sleep_for)
+
+
+def fetch_year_of_tsa_data(year_to_process, max_attempts: int = 4):
     """Fetch TSA Data for a Specific Year
 
     Fetches TSA (Transportation Security Administration) data for a specific year from the TSA website.
@@ -47,7 +63,7 @@ def fetch_year_of_tsa_data(year_to_process):
 
     logging.warning(f"Processing {year_to_process}")
 
-    r = requests.get(url, headers=header)
+    r = _request_with_retries(url, header, max_attempts=max_attempts)
 
     df = pd.read_html(r.text)[0]
 
@@ -55,7 +71,7 @@ def fetch_year_of_tsa_data(year_to_process):
 
     return df
 
-def fetch_all_tsa_data():
+def fetch_all_tsa_data(max_attempts: int = 4):
     """Fetch All TSA Data
 
     Fetches TSA (Transportation Security Administration) data for all available years
@@ -69,7 +85,7 @@ def fetch_all_tsa_data():
 
     for year_to_process in range(2019, datetime.datetime.now().year+1):
 
-        df = fetch_year_of_tsa_data(year_to_process)
+        df = fetch_year_of_tsa_data(year_to_process, max_attempts=max_attempts)
 
         dfs.append(df)
 
@@ -79,7 +95,8 @@ def fetch_all_tsa_data():
 
     from pathlib import Path
     out_path = Path(__file__).resolve().parents[1] / "data" / "tsa_data.csv"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     logging.warning(f"Writing TSA merged data to {out_path}")
-    df_merged.to_csv(out_path)
+    df_merged.to_csv(out_path, index=False)
 
     return df_merged
