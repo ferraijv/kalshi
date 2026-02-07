@@ -4,6 +4,7 @@ import datetime
 import logging
 import time
 from pathlib import Path
+from typing import Optional
 from requests.exceptions import RequestException
 
 def create_request_url(year_to_process, current_year):
@@ -85,7 +86,7 @@ def _load_existing_data(data_path: Path):
     return df, years_present
 
 
-def fetch_all_tsa_data(max_attempts: int = 4):
+def fetch_all_tsa_data(max_attempts: int = 4, data_root: Optional[Path] = None):
     """Fetch All TSA Data
 
     Fetches TSA (Transportation Security Administration) data for all available years
@@ -97,14 +98,14 @@ def fetch_all_tsa_data(max_attempts: int = 4):
 
     dfs = []
 
-    data_root = Path(__file__).resolve().parents[1] / "data"
+    data_root = data_root or Path(__file__).resolve().parents[1] / "data"
     data_root.mkdir(parents=True, exist_ok=True)
     data_path = data_root / "tsa_data.csv"
 
     existing_df, years_present = _load_existing_data(data_path)
 
     target_years = list(range(2019, datetime.datetime.now().year + 1))
-    missing_years = [y for y in target_years if y not in years_present]
+    missing_years = [y for y in target_years if (y not in years_present) or (y == datetime.datetime.now().year)]
 
     logging.warning(f"Existing years: {sorted(years_present)}; missing years to fetch: {missing_years}")
 
