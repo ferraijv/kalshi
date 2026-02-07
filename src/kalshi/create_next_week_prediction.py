@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pandas as pd
 import datetime
 import json
@@ -66,7 +68,11 @@ def lag_passengers():
 
     return tsa_data
 
-def calculate_days_until_sunday(run_date=None):
+def calculate_days_until_sunday(run_date: datetime.date | None = None) -> int:
+    """
+    Return the number of days from the given date (or today) to the next Sunday,
+    counting a same-day Sunday as 6 days to target the following week.
+    """
     date_to_calculate = run_date or datetime.date.today()
     days_until_sunday = (6 - date_to_calculate.weekday()) % 7
 
@@ -75,7 +81,9 @@ def calculate_days_until_sunday(run_date=None):
     if days_until_sunday == 0:
         days_until_sunday = 6
 
-    return days_until_sunday+1  # Data is delayed by one day
+    # Data is delayed by one day, but we still want "days until Sunday" to reflect
+    # calendar distance (Monday -> 6, Tuesday -> 5, Sunday -> 6 for next week).
+    return days_until_sunday
 
 def get_recent_trend(tsa_data, use_weighting=False):
     """
@@ -123,22 +131,15 @@ def get_max_date(tsa_data):
     return most_recent_date
 
 def get_same_date_last_year_day_of_week_adjusted(current_year_date):
-    import calendar
-
-    year = current_year_date.year
-    week_number = current_year_date.isocalendar().week
-    day_name = calendar.day_name[current_year_date.weekday()]
-
-    # Last year
-    year = year-1
-
-    new_date = str(year)+"-"+str(week_number)+"-"+day_name
-
-    day_of_week_adjusted_last_year = datetime.datetime.strptime(new_date, '%Y-%W-%A')
-
-    logging.warning(f"{current_year_date} entered as current date. {day_of_week_adjusted_last_year} output as same day of week last year")
-
-    return day_of_week_adjusted_last_year
+    """
+    Return the same ISO week/day from the prior calendar year as a datetime.
+    """
+    iso_year, iso_week, iso_weekday = current_year_date.isocalendar()
+    target_date = datetime.date.fromisocalendar(iso_year - 1, iso_week, iso_weekday)
+    logging.warning(
+        f"{current_year_date} entered as current date. {target_date} output as same day of week last year"
+    )
+    return datetime.datetime.combine(target_date, datetime.time())
 
 def get_prediction(tsa_data, run_date=None):
     """
