@@ -51,7 +51,14 @@ def lag_passengers() -> pd.DataFrame:
     data_path = Path(__file__).resolve().parents[1] / "data" / "tsa_data.csv"
     if not data_path.exists():
         raise FileNotFoundError(f"TSA data file not found at {data_path}. Populate it before running.")
-    tsa_data = pd.read_csv(data_path, index_col=0)
+    tsa_data = pd.read_csv(data_path)
+
+    # Simplify: enforce exactly Date/Numbers columns
+    missing_required = REQUIRED_RAW_COLUMNS - set(tsa_data.columns)
+    if missing_required and len(tsa_data.columns) >= 2:
+        tsa_data = tsa_data.rename(columns={tsa_data.columns[0]: "Date", tsa_data.columns[1]: "Numbers"})
+    tsa_data = tsa_data[["Date", "Numbers"]]
+
     _validate_raw_tsa_df(tsa_data)
 
     # Rename columns for clarity

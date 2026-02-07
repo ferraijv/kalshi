@@ -78,6 +78,12 @@ def _load_existing_data(data_path: Path):
     if not data_path.exists():
         return None, set()
     df = pd.read_csv(data_path)
+    # Simplify: enforce only Date/Numbers columns
+    missing_required = {"Date", "Numbers"} - set(df.columns)
+    if missing_required and len(df.columns) >= 2:
+        df = df.rename(columns={df.columns[0]: "Date", df.columns[1]: "Numbers"})
+    df = df[["Date", "Numbers"]]
+
     if "Date" not in df.columns:
         logging.warning(f"Existing TSA data missing Date column; refetching all years.")
         return None, set()
@@ -131,6 +137,7 @@ def fetch_all_tsa_data(max_attempts: int = 4, data_root: Optional[Path] = None):
         df_merged = df_merged.sort_values(by="Date")
 
     logging.warning(f"Writing TSA merged data to {data_path}")
+    df_merged = df_merged[["Date", "Numbers"]]
     df_merged.to_csv(data_path, index=False)
 
     return df_merged

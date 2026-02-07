@@ -55,8 +55,8 @@ def test_csv_columns_preserved(monkeypatch, tmp_path):
 
     out_df = tsa_fetch.fetch_all_tsa_data(data_root=data_root)
 
-    expected_cols = {"Date", "Numbers", "Extra"}
-    assert expected_cols.issubset(set(out_df.columns))
+    expected_cols = {"Date", "Numbers"}
+    assert set(out_df.columns) == expected_cols
 
     disk_df = pd.read_csv(data_root / "tsa_data.csv")
-    assert expected_cols.issubset(set(disk_df.columns))
+    assert set(disk_df.columns) == expected_cols
