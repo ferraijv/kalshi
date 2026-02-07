@@ -97,6 +97,9 @@ def get_likelihoods_of_each_contract(prediction, run_date=None):
 
     next_sunday = datetime.datetime.strptime(shared.get_next_sunday(reference_date=run_date), "%y%b%d").strftime("%Y-%m-%d")
 
+    if next_sunday not in prediction:
+        raise ValueError(f"Prediction date {next_sunday} missing from prediction dict; aborting likelihood calc")
+
     prediction = prediction[next_sunday]['prediction']
 
     print(f"Calculating likelihoods for {prediction}")

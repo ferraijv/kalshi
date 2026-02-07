@@ -1,12 +1,38 @@
 from __future__ import annotations
 
-import pandas as pd
 import datetime
 import json
 import logging
+from typing import Any, Dict
+
+import pandas as pd
 from kalshi import shared
 
-def lag_passengers():
+
+REQUIRED_RAW_COLUMNS = {"Date", "Numbers"}
+
+
+def _validate_raw_tsa_df(df: pd.DataFrame) -> None:
+    """Ensure the downloaded TSA CSV has the expected schema."""
+    missing = REQUIRED_RAW_COLUMNS - set(df.columns)
+    if missing:
+        raise ValueError(f"tsa_data.csv missing required columns: {sorted(missing)}")
+    if df.empty:
+        raise ValueError("tsa_data.csv is empty after load")
+
+
+def ensure_data_fresh(tsa_data: pd.DataFrame, run_date: datetime.date | None = None, max_age_days: int = 2) -> None:
+    """Raise if the most recent TSA observation is older than max_age_days."""
+    reference_date = run_date or datetime.date.today()
+    most_recent_date = get_max_date(tsa_data).date()
+    age_days = (reference_date - most_recent_date).days
+    if age_days > max_age_days:
+        raise ValueError(
+            f"Latest TSA data is {age_days} days old (most recent {most_recent_date}); skip trading until fresh data <={max_age_days} days."
+        )
+
+
+def lag_passengers() -> pd.DataFrame:
     """
     Load TSA passenger data, process it to create lagged features, and return the processed dataframe.
 
@@ -26,6 +52,7 @@ def lag_passengers():
     if not data_path.exists():
         raise FileNotFoundError(f"TSA data file not found at {data_path}. Populate it before running.")
     tsa_data = pd.read_csv(data_path, index_col=0)
+    _validate_raw_tsa_df(tsa_data)
 
     # Rename columns for clarity
     tsa_data.rename(columns={"Date": "date", "Numbers": "passengers"}, inplace=True)
@@ -85,7 +112,8 @@ def calculate_days_until_sunday(run_date: datetime.date | None = None) -> int:
     # calendar distance (Monday -> 6, Tuesday -> 5, Sunday -> 6 for next week).
     return days_until_sunday
 
-def get_recent_trend(tsa_data, use_weighting=False):
+
+def get_recent_trend(tsa_data: pd.DataFrame, use_weighting: bool = False) -> pd.DataFrame:
     """
     Calculate recent trends in TSA passenger data and create predictions based on these trends.
 
@@ -123,14 +151,17 @@ def get_recent_trend(tsa_data, use_weighting=False):
 
     return tsa_data
 
-def get_max_date(tsa_data):
+
+def get_max_date(tsa_data: pd.DataFrame) -> pd.Timestamp:
+    """Return the most recent date present in the TSA dataframe index."""
     most_recent_date = tsa_data.index.max()
 
     logging.warning(f"Using {most_recent_date} as most recent date")
 
     return most_recent_date
 
-def get_same_date_last_year_day_of_week_adjusted(current_year_date):
+
+def get_same_date_last_year_day_of_week_adjusted(current_year_date: datetime.datetime) -> datetime.datetime:
     """
     Return the same ISO week/day from the prior calendar year as a datetime.
     """
@@ -141,7 +172,10 @@ def get_same_date_last_year_day_of_week_adjusted(current_year_date):
     )
     return datetime.datetime.combine(target_date, datetime.time())
 
-def get_prediction(tsa_data, run_date=None):
+
+def get_prediction(
+    tsa_data: pd.DataFrame, run_date: datetime.date | None = None
+) -> Dict[str, Dict[str, Any]]:
     """
     Generate a prediction for the next Sunday's TSA passenger numbers based on historical data and recent trends.
 
@@ -186,7 +220,9 @@ def get_prediction(tsa_data, run_date=None):
 
     return prediction
 
-def save_prediction(prediction):
+
+def save_prediction(prediction: Dict[str, Dict[str, Any]]) -> None:
+    """Persist the provided prediction dictionary to disk, merging with any existing data."""
     logging.warning(prediction)
     try:
         with open("data/tsa_traffic_predictions") as f:
@@ -201,8 +237,10 @@ def save_prediction(prediction):
             json.dump(prediction, outfile)
 
 
-def create_next_week_prediction(run_date=None):
+def create_next_week_prediction(run_date: datetime.date | None = None) -> Dict[str, Dict[str, Any]]:
+    """Build and save a TSA passenger prediction for the next Sunday."""
     tsa_data = lag_passengers()
+    ensure_data_fresh(tsa_data, run_date=run_date)
     tsa_data = get_recent_trend(tsa_data, True)
     prediction = get_prediction(tsa_data, run_date)
     save_prediction(prediction)
