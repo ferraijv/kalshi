@@ -3,6 +3,7 @@ import requests
 import datetime
 import logging
 import time
+from pathlib import Path
 from requests.exceptions import RequestException
 
 def create_request_url(year_to_process, current_year):
@@ -71,6 +72,19 @@ def fetch_year_of_tsa_data(year_to_process, max_attempts: int = 4):
 
     return df
 
+def _load_existing_data(data_path: Path):
+    """Return (df, set_of_years) from existing CSV, or (None, set()) if missing."""
+    if not data_path.exists():
+        return None, set()
+    df = pd.read_csv(data_path)
+    if "Date" not in df.columns:
+        logging.warning(f"Existing TSA data missing Date column; refetching all years.")
+        return None, set()
+    df['year'] = pd.to_datetime(df['Date'], format='%m/%d/%Y').dt.year
+    years_present = set(df['year'].unique())
+    return df, years_present
+
+
 def fetch_all_tsa_data(max_attempts: int = 4):
     """Fetch All TSA Data
 
@@ -83,7 +97,22 @@ def fetch_all_tsa_data(max_attempts: int = 4):
 
     dfs = []
 
-    for year_to_process in range(2019, datetime.datetime.now().year+1):
+    data_root = Path(__file__).resolve().parents[1] / "data"
+    data_root.mkdir(parents=True, exist_ok=True)
+    data_path = data_root / "tsa_data.csv"
+
+    existing_df, years_present = _load_existing_data(data_path)
+
+    target_years = list(range(2019, datetime.datetime.now().year + 1))
+    missing_years = [y for y in target_years if y not in years_present]
+
+    logging.warning(f"Existing years: {sorted(years_present)}; missing years to fetch: {missing_years}")
+
+    # Keep existing data if it was loadable
+    if existing_df is not None:
+        dfs.append(existing_df)
+
+    for year_to_process in missing_years:
 
         df = fetch_year_of_tsa_data(year_to_process, max_attempts=max_attempts)
 
@@ -91,12 +120,16 @@ def fetch_all_tsa_data(max_attempts: int = 4):
 
         time.sleep(1)  # Wait in between requests to avoid
 
-    df_merged = pd.concat(dfs, ignore_index=True, sort=False)
+    if not dfs:
+        raise RuntimeError("No TSA data frames to merge; fetch may have failed.")
 
-    from pathlib import Path
-    out_path = Path(__file__).resolve().parents[1] / "data" / "tsa_data.csv"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    logging.warning(f"Writing TSA merged data to {out_path}")
-    df_merged.to_csv(out_path, index=False)
+    df_merged = pd.concat(dfs, ignore_index=True, sort=False)
+    # Drop duplicates on Date to avoid overlapping historical downloads
+    if "Date" in df_merged.columns:
+        df_merged = df_merged.drop_duplicates(subset=["Date"])
+        df_merged = df_merged.sort_values(by="Date")
+
+    logging.warning(f"Writing TSA merged data to {data_path}")
+    df_merged.to_csv(data_path, index=False)
 
     return df_merged
