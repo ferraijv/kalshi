@@ -200,6 +200,30 @@ class ExchangeClient(KalshiClient):
         dictr = self.get(market_url)
         return dictr
 
+    def get_market_candlesticks(
+        self,
+        series_ticker: str,
+        ticker: str,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int = 1440,
+        include_latest_before_start: bool = False,
+    ):
+        """
+        Fetch candlesticks for a market between start_ts and end_ts.
+        Path: /series/{series_ticker}/markets/{ticker}/candlesticks
+        """
+        params = {
+            "start_ts": start_ts,
+            "end_ts": end_ts,
+            "period_interval": period_interval,
+            "include_latest_before_start": str(include_latest_before_start).lower(),
+        }
+        query = self.query_generation(params)
+        path = f"/series/{series_ticker}/markets/{ticker}/candlesticks{query}"
+        print(f"[candles] GET {self.host}{path}")
+        return self.get(path)
+
     def get_event(self, 
                     event_ticker:str):
         dictr = self.get(self.events_url+'/'+event_ticker)
