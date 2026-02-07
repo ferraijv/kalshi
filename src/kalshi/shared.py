@@ -572,8 +572,9 @@ def get_markets_with_yes_price_below_threshold(event_id, threshold, exclude_tick
                 if market['yes_ask'] < threshold:
                     buy_yes_contract_at_market(market['ticker'], 10)
 
-def get_next_sunday(skip_today_if_sunday=False):
-    today = datetime.date.today()
+def get_next_sunday(skip_today_if_sunday=False, reference_date=None):
+    """Return next Sunday as YYMonDD uppercase string, using optional reference date."""
+    today = reference_date or datetime.date.today()
     # Calculate the number of days until the next Sunday (0 is Monday, 6 is Sunday)
     days_until_sunday = (6 - today.weekday()) % 7
     print(f"today: {days_until_sunday}")

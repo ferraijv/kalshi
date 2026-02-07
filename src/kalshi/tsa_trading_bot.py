@@ -87,15 +87,25 @@ def main():
     logfile = _init_logging()
     logging.info("Starting TSA trading bot run")
 
+    # Optional run-date argument: YYYY-MM-DD
+    run_date = None
+    if len(sys.argv) > 1:
+        try:
+            run_date = datetime.datetime.strptime(sys.argv[1], "%Y-%m-%d").date()
+        except ValueError:
+            logging.error("Invalid date format. Use YYYY-MM-DD.")
+            sys.exit(1)
+        logging.info(f"Using run date override: {run_date}")
+
     fetch_all_tsa_data()
-    prediction = create_next_week_prediction()
-    likelihoods = get_likelihoods_of_each_contract(prediction)
+    prediction = create_next_week_prediction(run_date=run_date)
+    likelihoods = get_likelihoods_of_each_contract(prediction, run_date=run_date)
     logging.info(f"Prediction keys: {list(prediction.keys())}")
     logging.info(f"Computed likelihoods for {len(likelihoods)} contracts")
 
     if datetime.date.today().weekday() == 0:
         try:
-            orders = create_limit_orders_for_all_contracts(likelihoods)
+            orders = create_limit_orders_for_all_contracts(likelihoods, run_date=run_date)
             logging.info(f"Orders placed: {orders}")
         except Exception:
             orders = "No orders placed today"

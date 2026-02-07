@@ -24,8 +24,8 @@ def get_floor_strike_and_prices(event_id):
 
     return prices
 
-def get_current_market_prices():
-    next_sunday = shared.get_next_sunday()
+def get_current_market_prices(run_date=None):
+    next_sunday = shared.get_next_sunday(reference_date=run_date)
     event_id = shared.create_tsa_event_id(next_sunday)
 
     prices = get_floor_strike_and_prices(event_id)
@@ -68,7 +68,7 @@ def get_likelihood_of_no(prediction, floor_strike, historical_data):
     return likelihood
 
 
-def get_likelihoods_of_each_contract(prediction):
+def get_likelihoods_of_each_contract(prediction, run_date=None):
     """
     Calculate the likelihood of each contract being correct based on a prediction and historical data.
 
@@ -95,7 +95,7 @@ def get_likelihoods_of_each_contract(prediction):
           - 'true_value': The calculated likelihood of that side being correct.
     """
 
-    next_sunday = datetime.datetime.strptime(shared.get_next_sunday(), "%y%b%d").strftime("%Y-%m-%d")
+    next_sunday = datetime.datetime.strptime(shared.get_next_sunday(reference_date=run_date), "%y%b%d").strftime("%Y-%m-%d")
 
     prediction = prediction[next_sunday]['prediction']
 
@@ -110,7 +110,7 @@ def get_likelihoods_of_each_contract(prediction):
 
     likelihoods = {}
 
-    prices = get_current_market_prices()
+    prices = get_current_market_prices(run_date)
 
     print(prices)
 

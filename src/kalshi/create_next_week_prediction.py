@@ -66,7 +66,8 @@ def lag_passengers():
 
     return tsa_data
 
-def calculate_days_until_sunday(date_to_calculate=datetime.date.today()):
+def calculate_days_until_sunday(run_date=None):
+    date_to_calculate = run_date or datetime.date.today()
     days_until_sunday = (6 - date_to_calculate.weekday()) % 7
 
     logging.info(f"Days until Sunday: {days_until_sunday}")
@@ -139,7 +140,7 @@ def get_same_date_last_year_day_of_week_adjusted(current_year_date):
 
     return day_of_week_adjusted_last_year
 
-def get_prediction(tsa_data):
+def get_prediction(tsa_data, run_date=None):
     """
     Generate a prediction for the next Sunday's TSA passenger numbers based on historical data and recent trends.
 
@@ -152,7 +153,7 @@ def get_prediction(tsa_data):
     :param tsa_data: DataFrame containing TSA passenger data with necessary features.
     :return: Dictionary with the date of the next Sunday as the key and the predicted number of passengers as the value.
     """
-    next_sunday = datetime.datetime.strptime(shared.get_next_sunday(), "%y%b%d")
+    next_sunday = datetime.datetime.strptime(shared.get_next_sunday(reference_date=run_date), "%y%b%d")
     last_year = get_same_date_last_year_day_of_week_adjusted(next_sunday).strftime("%Y-%m-%d")
     last_years_passengers = tsa_data.loc[last_year]['passengers_7_day_moving_average']
     logging.warning(last_years_passengers)
@@ -177,7 +178,7 @@ def get_prediction(tsa_data):
         "day_7_trend": day_7_trend,
         "prediction": last_years_passengers*yoy_adjustment,
         "most_recent_date": most_recent_date,
-        "days_until_sunday": calculate_days_until_sunday()
+        "days_until_sunday": calculate_days_until_sunday(run_date)
     }
 
     logging.warning(prediction)
@@ -199,10 +200,10 @@ def save_prediction(prediction):
             json.dump(prediction, outfile)
 
 
-def create_next_week_prediction():
+def create_next_week_prediction(run_date=None):
     tsa_data = lag_passengers()
     tsa_data = get_recent_trend(tsa_data, True)
-    prediction = get_prediction(tsa_data)
+    prediction = get_prediction(tsa_data, run_date)
     save_prediction(prediction)
 
     return prediction

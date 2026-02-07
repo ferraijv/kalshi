@@ -1,7 +1,7 @@
 from kalshi import shared
 import uuid
 
-def create_limit_orders_for_all_contracts(likelihoods):
+def create_limit_orders_for_all_contracts(likelihoods, run_date=None):
     """
     Create limit orders for all contracts based on their calculated likelihoods.
 
@@ -30,7 +30,7 @@ def create_limit_orders_for_all_contracts(likelihoods):
           order parameters, and side of the contract.
     """
     exchange_client = shared.login(use_demo=True)
-    event_ticker = shared.create_tsa_event_id(shared.get_next_sunday())
+    event_ticker = shared.create_tsa_event_id(shared.get_next_sunday(reference_date=run_date))
     print(exchange_client.get_orders(event_ticker=event_ticker)['orders'])
     orders = []
     for contract_ticker, likelihood in likelihoods.items():
