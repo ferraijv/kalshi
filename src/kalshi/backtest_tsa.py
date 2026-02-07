@@ -29,6 +29,7 @@ DEFAULT_CACHE = Path(__file__).resolve().parents[1] / "data" / "tsa_market_histo
 class BacktestResult:
     market: str
     date: datetime.date
+    side: str
     prob: float
     fill_price: float
     outcome: int
@@ -119,23 +120,37 @@ def backtest_range(
             if np.isnan(fill_price):
                 continue
 
+            actual_ts = pd.Timestamp(event_date)
+            if actual_ts not in passenger_data.index:
+                continue
+            actual = float(passenger_data.loc[actual_ts]["passengers_7_day_moving_average"])
+            if np.isnan(actual):
+                continue
+
             if pred_passengers > floor_strike:
+                side = "yes"
                 prob = get_likelihood_of_yes(pred_passengers, floor_strike, hist)
-            else:
+            elif pred_passengers < floor_strike:
+                side = "no"
                 prob = get_likelihood_of_no(pred_passengers, floor_strike, hist)
-            actual = float(filtered.loc[filtered.index.max()]["passengers_7_day_moving_average"])
-            side = "yes" if prob >= 0.5 else "no"
+            else:
+                # No directional edge when prediction equals strike.
+                continue
+
             outcome = _calc_outcome(actual, floor_strike, side)
 
-            edge = prob - fill_price
-            pnl = (1 - fill_price) if (side == "yes" and outcome == 1) else (-fill_price)
+            contract_price = fill_price if side == "yes" else 1 - fill_price
+            edge = prob - contract_price
+            pnl = (1 - contract_price) if outcome == 1 else (-contract_price)
             brier = (prob - outcome) ** 2
-            logloss = -(outcome * np.log(prob + 1e-9) + (1 - outcome) * np.log(1 - prob + 1e-9))
+            prob_clipped = float(np.clip(prob, 1e-9, 1 - 1e-9))
+            logloss = -(outcome * np.log(prob_clipped) + (1 - outcome) * np.log(1 - prob_clipped))
 
             results.append(
                 BacktestResult(
                     market=market_ticker,
                     date=event_date,
+                    side=side,
                     prob=prob,
                     fill_price=fill_price,
                     outcome=outcome,
