@@ -39,6 +39,18 @@ PYTHONPATH=src python src/kalshi/tsa_trading_bot.py
 ```
 Most scripts assume real-money mode by default; some accept `use_demo=True` inside the code (not CLI-exposed).
 
+## TSA backtesting and historical prices
+- API reference: see `reference/kalshi_docs` for endpoint shapes and URLs.
+- Fetch historical TSA market candlesticks (cached):
+  ```
+  PYTHONPATH=src python -m kalshi.fetch_tsa_history --start 2025-12-01 --end 2026-02-01 --interval 1440
+  ```
+- Run a rule-based TSA backtest with empirical likelihoods:
+  ```
+  PYTHONPATH=src python -m kalshi.backtest_tsa --start 2025-12-01 --end 2026-02-01 --interval 1440
+  ```
+  Reports are written to `reports/` as CSV and Markdown summaries.
+
 ## Current limitations / notes
 - No command-line interface for toggling demo vs live; edit scripts if needed.
 - Strategy logic largely lives inline in scripts; a pluggable strategy registry does not exist yet—add new strategies by creating new scripts or extracting shared pieces into `shared.py`.
