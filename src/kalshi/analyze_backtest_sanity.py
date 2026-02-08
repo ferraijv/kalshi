@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
+import json
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -27,6 +31,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run sanity checks on TSA backtest results.")
     parser.add_argument("--csv", type=Path, required=True, help="Path to backtest CSV")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_REPORTS, help="Directory for markdown report")
+    parser.add_argument("--metadata-json", type=Path, default=None, help="Optional path to write run metadata JSON")
     return parser.parse_args()
 
 
@@ -125,6 +130,61 @@ def calibration_table(df: pd.DataFrame, bins: int = 10) -> pd.DataFrame:
     return table
 
 
+def expected_calibration_error(calibration: pd.DataFrame) -> float:
+    """Return weighted absolute calibration gap across populated bins."""
+    populated = calibration[calibration["trades"] > 0]
+    if populated.empty:
+        return float("nan")
+    total_trades = populated["trades"].sum()
+    abs_gap = (populated["hit_rate"] - populated["mean_confidence"]).abs()
+    return float((populated["trades"] * abs_gap).sum() / total_trades)
+
+
+def max_drawdown(df: pd.DataFrame) -> float:
+    """Return maximum drawdown from cumulative PnL."""
+    if df.empty:
+        return float("nan")
+    cumulative = df["pnl"].cumsum()
+    running_peak = cumulative.cummax()
+    drawdowns = running_peak - cumulative
+    return float(drawdowns.max())
+
+
+def _sort_for_time_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """Sort rows by date if parseable, preserving stable order for ties."""
+    if "date" not in df.columns:
+        return df.reset_index(drop=True)
+    sorted_df = df.copy()
+    sorted_df["__parsed_date"] = pd.to_datetime(sorted_df["date"], errors="coerce")
+    sorted_df["__row"] = np.arange(len(sorted_df))
+    sorted_df = sorted_df.sort_values(by=["__parsed_date", "__row"], kind="mergesort")
+    return sorted_df.drop(columns=["__parsed_date", "__row"]).reset_index(drop=True)
+
+
+def key_metrics(df: pd.DataFrame, calibration: pd.DataFrame) -> Dict[str, float]:
+    """Return canonical KPI set used for baseline/candidate comparisons."""
+    if df.empty:
+        return {}
+    sorted_df = _sort_for_time_metrics(df)
+    pnl_std = float(sorted_df["pnl"].std(ddof=0))
+    pnl_avg = float(sorted_df["pnl"].mean())
+    sharpe_like = pnl_avg / pnl_std if pnl_std > 0 else float("nan")
+    return {
+        "trades": float(len(sorted_df)),
+        "pnl_total": float(sorted_df["pnl"].sum()),
+        "pnl_avg": pnl_avg,
+        "pnl_std": pnl_std,
+        "sharpe_like": float(sharpe_like),
+        "max_drawdown": max_drawdown(sorted_df),
+        "hit_rate": float(sorted_df["outcome"].mean()),
+        "avg_edge": float(sorted_df["edge"].mean()),
+        "edge_pnl_corr": float(sorted_df["edge"].corr(sorted_df["pnl"])) if len(sorted_df) > 1 else float("nan"),
+        "brier_mean": float(sorted_df["brier"].mean()),
+        "logloss_mean": float(sorted_df["logloss"].mean()),
+        "ece": expected_calibration_error(calibration),
+    }
+
+
 def edge_diagnostics(df: pd.DataFrame) -> Dict[str, float]:
     edge_positive = df[df["edge"] > 0]
     edge_non_positive = df[df["edge"] <= 0]
@@ -180,6 +240,7 @@ def render_markdown(
     calibration: pd.DataFrame,
     edge_stats: Dict[str, float],
     pnl_ci: Tuple[float, float],
+    metrics: Dict[str, float],
 ) -> str:
     pass_count = sum(1 for c in checks if c.passed)
     lines: List[str] = []
@@ -196,12 +257,17 @@ def render_markdown(
         lines.append(f"- [{status}] {check.name}: {check.details}")
     lines.append("")
     lines.append("## Key Metrics")
-    lines.append(f"- pnl_total: {df['pnl'].sum():.6f}")
-    lines.append(f"- pnl_avg: {df['pnl'].mean():.6f}")
-    lines.append(f"- hit_rate: {df['outcome'].mean():.6f}")
-    lines.append(f"- avg_edge: {df['edge'].mean():.6f}")
-    lines.append(f"- brier_mean: {df['brier'].mean():.6f}")
-    lines.append(f"- logloss_mean: {df['logloss'].mean():.6f}")
+    lines.append(f"- pnl_total: {metrics['pnl_total']:.6f}")
+    lines.append(f"- pnl_avg: {metrics['pnl_avg']:.6f}")
+    lines.append(f"- pnl_std: {metrics['pnl_std']:.6f}")
+    lines.append(f"- sharpe_like: {metrics['sharpe_like']:.6f}")
+    lines.append(f"- max_drawdown: {metrics['max_drawdown']:.6f}")
+    lines.append(f"- hit_rate: {metrics['hit_rate']:.6f}")
+    lines.append(f"- avg_edge: {metrics['avg_edge']:.6f}")
+    lines.append(f"- edge_pnl_corr: {metrics['edge_pnl_corr']:.6f}")
+    lines.append(f"- brier_mean: {metrics['brier_mean']:.6f}")
+    lines.append(f"- logloss_mean: {metrics['logloss_mean']:.6f}")
+    lines.append(f"- ece: {metrics['ece']:.6f}")
     lines.append(f"- pnl_avg_95pct_bootstrap_ci: [{pnl_ci[0]:.6f}, {pnl_ci[1]:.6f}]")
     lines.append("")
     lines.append("## Edge Diagnostics")
@@ -218,6 +284,32 @@ def render_markdown(
     lines.append(_df_to_markdown(calibration))
     lines.append("")
     return "\n".join(lines)
+
+
+def build_run_metadata(
+    csv_path: Path,
+    metrics: Dict[str, float],
+    checks: List[CheckResult],
+) -> Dict[str, object]:
+    """Return reproducibility metadata for this analyzer run."""
+    generated_at = datetime.datetime.now().isoformat(timespec="seconds")
+    content = csv_path.read_bytes()
+    csv_sha256 = hashlib.sha256(content).hexdigest()
+    try:
+        git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    except Exception:
+        git_commit = None
+    return {
+        "generated_at": generated_at,
+        "source_csv": str(csv_path.resolve()),
+        "source_csv_sha256": csv_sha256,
+        "git_commit": git_commit,
+        "python_version": sys.version.split()[0],
+        "checks_passed": int(sum(1 for c in checks if c.passed)),
+        "checks_total": int(len(checks)),
+        "metrics": metrics,
+        "command": " ".join(sys.argv),
+    }
 
 
 def _format_cell(value: object) -> str:
@@ -245,6 +337,7 @@ def main() -> None:
     checks = run_checks(df)
     by_side = summary_by_side(df)
     calibration = calibration_table(df)
+    metrics = key_metrics(df, calibration)
     edge_stats = edge_diagnostics(df)
     pnl_ci = bootstrap_mean_pnl_ci(df)
 
@@ -256,12 +349,16 @@ def main() -> None:
         calibration=calibration,
         edge_stats=edge_stats,
         pnl_ci=pnl_ci,
+        metrics=metrics,
     )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     stem = args.csv.stem.replace("tsa_backtest_", "tsa_backtest_sanity_")
     out_path = args.out_dir / f"{stem}.md"
     out_path.write_text(report)
+    metadata = build_run_metadata(args.csv, metrics=metrics, checks=checks)
+    metadata_path = args.metadata_json or (args.out_dir / f"{stem}.json")
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True))
     print(out_path)
 
 
