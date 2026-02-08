@@ -29,6 +29,22 @@ def _login(client=None):
     return client or shared.login()
 
 
+def _cache_path_for_request(
+    cache_dir: Path,
+    market_ticker: str,
+    interval_minutes: int,
+    start_ts: int,
+    end_ts: int,
+    include_latest_before_start: bool,
+) -> Path:
+    """Return a cache path that is unique for a specific candle request window."""
+    latest_flag = int(include_latest_before_start)
+    return cache_dir / (
+        f"{market_ticker}_{interval_minutes}m_"
+        f"{start_ts}_{end_ts}_lbs{latest_flag}.parquet"
+    )
+
+
 def fetch_market_candles(
     market_ticker: str,
     start_ts: int,
@@ -38,9 +54,16 @@ def fetch_market_candles(
     client=None,
     include_latest_before_start: bool = False,
 ) -> pd.DataFrame:
-    """Fetch candlesticks for a market, cached by ticker+interval."""
+    """Fetch candlesticks for a market, cached by ticker+window+interval."""
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = cache_dir / f"{market_ticker}_{interval_minutes}m.parquet"
+    cache_path = _cache_path_for_request(
+        cache_dir=cache_dir,
+        market_ticker=market_ticker,
+        interval_minutes=interval_minutes,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        include_latest_before_start=include_latest_before_start,
+    )
     if cache_path.exists():
         return pd.read_parquet(cache_path)
 

@@ -39,6 +39,14 @@ class BacktestResult:
     edge: float
 
 
+def _extract_hist_date_column(hist: pd.DataFrame) -> pd.Series:
+    """Return parsed historical row dates if present; otherwise NaT for all rows."""
+    for candidate in ("date", "Date", "Unnamed: 0", "index"):
+        if candidate in hist.columns:
+            return pd.to_datetime(hist[candidate], errors="coerce")
+    return pd.Series(pd.NaT, index=hist.index, dtype="datetime64[ns]")
+
+
 def _calc_fill_price(candles: pd.DataFrame) -> float:
     """Return an implied fill probability from candlestick data (mid of bid/ask if present)."""
     if candles.empty:
@@ -79,17 +87,20 @@ def backtest_range(
     # historical error data for calibration (mirrors live likelihood calc)
     data_path = Path(__file__).resolve().parents[1] / "data" / "lagged_tsa_data.csv"
     hist = pd.read_csv(data_path)
-    hist = hist[["passengers_7_day_moving_average", "prediction", "day_of_week"]]
+    hist["hist_date"] = _extract_hist_date_column(hist)
+    hist = hist[["passengers_7_day_moving_average", "prediction", "day_of_week", "hist_date"]]
     hist = hist[~hist["prediction"].isna()]
     hist["percent_error"] = hist["passengers_7_day_moving_average"] / hist["prediction"] - 1
+    has_hist_dates = bool(hist["hist_date"].notna().any())
 
     for event_ticker in events:
         date_str = event_ticker.split("-")[-1]
         event_date = datetime.datetime.strptime(date_str, "%y%b%d").date()
         run_date = event_date - datetime.timedelta(days=7)
+        run_ts = pd.Timestamp(run_date)
 
         # prediction using data available up to run_date
-        filtered = passenger_data[passenger_data.index <= pd.Timestamp(run_date)]
+        filtered = passenger_data[passenger_data.index <= run_ts]
         if filtered.empty:
             continue
         filtered = tsa_model.get_recent_trend(filtered, True)
@@ -127,12 +138,16 @@ def backtest_range(
             if np.isnan(actual):
                 continue
 
+            hist_for_run = hist[hist["hist_date"] <= run_ts] if has_hist_dates else hist
+            if hist_for_run.empty:
+                continue
+
             if pred_passengers > floor_strike:
                 side = "yes"
-                prob = get_likelihood_of_yes(pred_passengers, floor_strike, hist)
+                prob = get_likelihood_of_yes(pred_passengers, floor_strike, hist_for_run)
             elif pred_passengers < floor_strike:
                 side = "no"
-                prob = get_likelihood_of_no(pred_passengers, floor_strike, hist)
+                prob = get_likelihood_of_no(pred_passengers, floor_strike, hist_for_run)
             else:
                 # No directional edge when prediction equals strike.
                 continue

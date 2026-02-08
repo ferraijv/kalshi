@@ -185,3 +185,68 @@ def test_backtest_no_side_and_pnl_uses_no_contract_pricing(monkeypatch, tmp_path
     row = df.iloc[0]
     assert row["outcome"] == 1
     assert row["pnl"] == pytest.approx(0.2)
+
+
+def test_backtest_filters_likelihood_history_to_run_date(monkeypatch, tmp_path):
+    event_ticker = "KXTSAW-25DEC07"
+    run_date = datetime.date(2025, 11, 30)
+    event_date = datetime.date(2025, 12, 7)
+    idx = pd.to_datetime([run_date, event_date])
+    passengers = pd.DataFrame(
+        {
+            "passengers": [2_300_000, 2_500_000],
+            "previous_year": [2_200_000, 2_400_000],
+            "passengers_7_day_moving_average": [2_300_000, 2_500_000],
+            "passengers_7_day_moving_average_previous_year": [2_200_000, 2_400_000],
+        },
+        index=idx,
+    )
+    hist = pd.DataFrame(
+        {
+            "date": ["2025-11-20", "2025-11-30", "2025-12-01"],
+            "passengers_7_day_moving_average": [100.0, 102.0, 140.0],
+            "prediction": [100.0, 100.0, 100.0],
+            "day_of_week": ["Sunday", "Sunday", "Sunday"],
+        }
+    )
+
+    monkeypatch.setattr(backtest_tsa, "build_tsa_events", lambda start, end: [event_ticker])
+    monkeypatch.setattr(backtest_tsa.tsa_model, "lag_passengers", lambda: passengers)
+    monkeypatch.setattr(backtest_tsa.tsa_model, "get_recent_trend", lambda df, use_weighting=True: df)
+    monkeypatch.setattr(
+        backtest_tsa.tsa_model,
+        "get_prediction",
+        lambda df, run_date=None: {run_date.strftime("%Y-%m-%d"): {"prediction": 2_600_000}},
+    )
+    monkeypatch.setattr(backtest_tsa.pd, "read_csv", lambda *_args, **_kwargs: hist)
+
+    seen_max_hist_date = []
+
+    def fake_likelihood(prediction, floor_strike, historical_data):
+        seen_max_hist_date.append(historical_data["hist_date"].max())
+        return 0.9
+
+    monkeypatch.setattr(backtest_tsa, "get_likelihood_of_yes", fake_likelihood)
+
+    class FakeClient:
+        def get_event(self, ticker):
+            assert ticker == event_ticker
+            return {"markets": [{"ticker": f"{event_ticker}-A2.45", "floor_strike": 2_450_000}]}
+
+    monkeypatch.setattr(backtest_tsa.shared, "login", lambda: FakeClient())
+    monkeypatch.setattr(
+        backtest_tsa,
+        "fetch_market_candles",
+        lambda *_args, **_kwargs: pd.DataFrame({"yes_bid.close": [55], "yes_ask.close": [65]}),
+    )
+
+    df = backtest_tsa.backtest_range(
+        start_date=datetime.date(2025, 12, 1),
+        end_date=datetime.date(2025, 12, 7),
+        interval_minutes=1440,
+        cache_dir=tmp_path,
+    )
+
+    assert len(df) == 1
+    assert seen_max_hist_date
+    assert seen_max_hist_date[0] <= pd.Timestamp(run_date)
