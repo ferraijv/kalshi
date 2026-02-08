@@ -1,0 +1,13 @@
+{
+  "name": "tsa_baseline_v1",
+  "description": "Canonical Phase 0 benchmark run for TSA backtest comparisons.",
+  "backtest": {
+    "start": "2022-06-05",
+    "end": "2026-02-01",
+    "interval_minutes": 1440,
+    "include_latest_before_start": false
+  },
+  "reporting": {
+    "report_dir": "src/reports/baselines/tsa_baseline_v1"
+  }
+}

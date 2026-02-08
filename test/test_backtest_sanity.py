@@ -70,3 +70,53 @@ def test_calibration_uses_side_probability_directly():
     table = analyze_backtest_sanity.calibration_table(df, bins=10)
     populated = table[table["trades"] > 0].iloc[0]
     assert 0.7 <= populated["mean_confidence"] <= 0.9
+
+
+def test_key_metrics_includes_drawdown_and_ece():
+    df = pd.DataFrame(
+        [
+            {
+                "market": "KXTSAW-25DEC07-A2.45",
+                "date": "2025-12-07",
+                "side": "yes",
+                "prob": 0.7,
+                "fill_price": 0.6,
+                "outcome": 1,
+                "pnl": 0.4,
+                "brier": 0.09,
+                "logloss": -np.log(0.7),
+                "edge": 0.1,
+            },
+            {
+                "market": "KXTSAW-25DEC14-A2.45",
+                "date": "2025-12-14",
+                "side": "yes",
+                "prob": 0.8,
+                "fill_price": 0.6,
+                "outcome": 0,
+                "pnl": -0.6,
+                "brier": 0.64,
+                "logloss": -np.log(0.2),
+                "edge": 0.2,
+            },
+            {
+                "market": "KXTSAW-25DEC21-A2.45",
+                "date": "2025-12-21",
+                "side": "yes",
+                "prob": 0.6,
+                "fill_price": 0.5,
+                "outcome": 1,
+                "pnl": 0.5,
+                "brier": 0.16,
+                "logloss": -np.log(0.6),
+                "edge": 0.1,
+            },
+        ]
+    )
+    calibration = analyze_backtest_sanity.calibration_table(df, bins=10)
+    metrics = analyze_backtest_sanity.key_metrics(df, calibration)
+
+    assert metrics["trades"] == 3
+    assert metrics["max_drawdown"] == 0.6
+    assert 0.0 <= metrics["ece"] <= 1.0
+    assert np.isfinite(metrics["pnl_std"])
