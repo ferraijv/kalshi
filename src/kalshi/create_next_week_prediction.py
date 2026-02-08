@@ -129,6 +129,9 @@ def get_recent_trend(tsa_data: pd.DataFrame, use_weighting: bool = False) -> pd.
     2. Create a lagged trend feature.
     3. Generate predictions using the previous year's 7-day moving average and the lagged trend.
     """
+    # Work on an explicit copy to avoid chained-assignment pitfalls for sliced inputs.
+    tsa_data = tsa_data.copy()
+
     # Calculate the current trend
     tsa_data['current_trend_1_day'] = tsa_data['passengers'] / tsa_data[
         'previous_year']
@@ -197,7 +200,17 @@ def get_prediction(
     """
     next_sunday = datetime.datetime.strptime(shared.get_next_sunday(reference_date=run_date), "%y%b%d")
     last_year = get_same_date_last_year_day_of_week_adjusted(next_sunday).strftime("%Y-%m-%d")
+    if last_year not in tsa_data.index:
+        raise ValueError(
+            f"Insufficient history for prediction date {next_sunday.strftime('%Y-%m-%d')}: "
+            f"missing prior-year reference date {last_year}."
+        )
     last_years_passengers = tsa_data.loc[last_year]['passengers_7_day_moving_average']
+    if pd.isna(last_years_passengers):
+        raise ValueError(
+            f"Insufficient history for prediction date {next_sunday.strftime('%Y-%m-%d')}: "
+            f"prior-year reference {last_year} has NaN passengers_7_day_moving_average."
+        )
     logging.warning(last_years_passengers)
 
     most_recent_date = get_max_date(tsa_data).strftime("%Y-%m-%d")
@@ -205,6 +218,11 @@ def get_prediction(
     day_7_trend = tsa_data.loc[most_recent_date]['current_trend']
 
     day_1_trend = tsa_data.loc[most_recent_date]['current_trend_1_day']
+    if pd.isna(day_7_trend) or pd.isna(day_1_trend):
+        raise ValueError(
+            f"Insufficient trend data for prediction date {next_sunday.strftime('%Y-%m-%d')}: "
+            f"current trend values contain NaN on {most_recent_date}."
+        )
 
     yoy_adjustment = (
             day_7_trend*.8 # Weight 7-day average heavier

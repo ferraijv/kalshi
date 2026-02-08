@@ -16,3 +16,7 @@ src/data/*
 .venv/
 
 src/reports/*
+
+*.md
+
+*.csv

@@ -14,6 +14,7 @@ import pandas as pd
 
 from . import shared
 from . import create_next_week_prediction as tsa_model
+from .clients import HttpError
 from .fetch_tsa_history import fetch_market_candles, build_tsa_events
 from .get_current_tsa_market_prices import (
     get_likelihood_of_yes,
@@ -104,11 +105,23 @@ def backtest_range(
         if filtered.empty:
             continue
         filtered = tsa_model.get_recent_trend(filtered, True)
-        prediction = tsa_model.get_prediction(filtered, run_date)
+        try:
+            prediction = tsa_model.get_prediction(filtered, run_date)
+        except (KeyError, ValueError):
+            # Earliest windows may not have enough prior-year reference dates.
+            continue
         pred_key = next(iter(prediction))
         pred_passengers = float(prediction[pred_key]["prediction"])
+        if np.isnan(pred_passengers):
+            continue
 
-        event = client.get_event(event_ticker)
+        try:
+            event = client.get_event(event_ticker)
+        except HttpError as exc:
+            if exc.status == 404:
+                # Some older weekly event tickers are no longer available via API.
+                continue
+            raise
         for market in event.get("markets", []):
             market_ticker = market["ticker"]
 
