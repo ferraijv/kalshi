@@ -112,15 +112,19 @@ def backtest_range(
         try:
             prediction = tsa_model.get_prediction(filtered, run_date)
         except (KeyError, ValueError):
+            # Earliest windows may not have enough prior-year reference dates.
             continue
         pred_key = next(iter(prediction))
         pred_payload = prediction[pred_key]
         pred_passengers = float(pred_payload["prediction"])
+        if np.isnan(pred_passengers):
+            continue
 
         try:
             event = client.get_event(event_ticker)
         except HttpError as exc:
             if exc.status == 404:
+                # Some older weekly event tickers are no longer available via API.
                 continue
             raise
         for market in event.get("markets", []):

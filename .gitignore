@@ -17,4 +17,8 @@ src/data/*
 
 src/reports/*
 !src/reports/README.md
-
+!src/reports/archive/
+!src/reports/archive/legacy_root_reports/
+!src/reports/archive/legacy_root_reports/*.csv
+!src/reports/archive/legacy_root_reports/*.md
+!src/reports/archive/legacy_root_reports/*.json
