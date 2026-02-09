@@ -19,6 +19,32 @@ DEFAULT_REPORT_DIR = Path(__file__).resolve().parents[1] / "reports" / "experime
 DEFAULT_MODEL_DIR = Path(__file__).resolve().parents[1] / "data" / "models" / "ablation"
 
 
+def _feature_description_lookup() -> Dict[str, str]:
+    """Return plain-language definitions for feature names used in ablation reports."""
+    return {
+        "floor_strike_millions": "Contract strike (floor) converted to millions of passengers.",
+        "strike_distance_pct": "(prediction - strike) / strike. Positive means forecast is above strike.",
+        "abs_strike_distance_pct": "Absolute value of strike_distance_pct; distance from strike regardless of direction.",
+        "days_until_sunday": "Calendar days from run_date to the Sunday settlement date.",
+        "day_1_trend": "Near-term trend from most recent daily movement in TSA passengers.",
+        "day_7_trend": "Week-over-week trend signal from recent 7-day movement.",
+        "yoy_adjustment": "Composite trend adjustment blending day_7_trend and day_1_trend.",
+        "last_year_passengers": "TSA passenger level from the comparable date last year.",
+    }
+
+
+def _variant_description_lookup() -> Dict[str, str]:
+    """Return plain-language definitions for common ablation variant names."""
+    return {
+        "full": "All currently engineered features.",
+        "lean_core": "Minimal core signal set used for simple/robust baseline behavior.",
+        "lean_plus_strike_level": "lean_core plus raw strike level.",
+        "lean_plus_last_year": "lean_core plus last-year passenger level.",
+        "no_composite_yoy": "Drops yoy_adjustment composite and keeps separate trend inputs.",
+        "without_days_until_sunday": "full set without days_until_sunday.",
+    }
+
+
 def _default_feature_sets() -> Dict[str, List[str]]:
     """Return named feature sets for ablation experiments."""
     return {
@@ -132,7 +158,28 @@ def _render_markdown(
     lines.append(divider)
     for _, row in show.iterrows():
         cells = [str(row[c]) for c in cols]
-        lines.append("| " + " | ".join(cells) + " |")
+    lines.append("| " + " | ".join(cells) + " |")
+    lines.append("")
+
+    variant_lookup = _variant_description_lookup()
+    lines.append("## Variant Name Lookup")
+    lines.append("")
+    lines.append("| name | meaning |")
+    lines.append("| --- | --- |")
+    for name in rows["name"].tolist():
+        meaning = variant_lookup.get(name, "Custom variant name (defined by provided feature list).")
+        lines.append(f"| {name} | {meaning} |")
+    lines.append("")
+
+    feature_lookup = _feature_description_lookup()
+    used_features = sorted({feature for value in rows["features"].tolist() for feature in str(value).split(",") if feature})
+    lines.append("## Feature Name Lookup")
+    lines.append("")
+    lines.append("| feature | meaning |")
+    lines.append("| --- | --- |")
+    for feature in used_features:
+        meaning = feature_lookup.get(feature, "No description in lookup yet; treat as custom feature.")
+        lines.append(f"| {feature} | {meaning} |")
     lines.append("")
     return "\n".join(lines)
 

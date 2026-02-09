@@ -95,7 +95,7 @@ PYTHONPATH=src python3 -m kalshi.backtest_tsa \
   --end 2026-02-01 \
   --interval 1440 \
   --cache src/data/tsa_market_history \
-  --report-dir src/reports/experiments/tsa_model_compare/heuristic \
+  --report-dir src/reports/experiments/tsa_model_compare/runs/<run_id>/heuristic \
   --prob-source heuristic
 ```
 
@@ -107,7 +107,7 @@ PYTHONPATH=src python3 -m kalshi.backtest_tsa \
   --end 2026-02-01 \
   --interval 1440 \
   --cache src/data/tsa_market_history \
-  --report-dir src/reports/experiments/tsa_model_compare/model \
+  --report-dir src/reports/experiments/tsa_model_compare/runs/<run_id>/model \
   --prob-source model \
   --model-bundle src/data/models/tsa_yes_probability_model.joblib
 ```
@@ -118,7 +118,7 @@ PYTHONPATH=src python3 -m kalshi.backtest_tsa \
 PYTHONPATH=src python3 -m kalshi.compare_backtests \
   --baseline <baseline_csv> \
   --candidate <candidate_csv> \
-  --out <comparison_md>
+  --out src/reports/experiments/tsa_model_compare/runs/<run_id>/comparison.md
 ```
 
 ### 7) Run feature ablations
@@ -159,6 +159,8 @@ In strict model runs, `prob_source_heuristic` should be `0`.
   - `reference/tsa_models_theory_and_implementation.md`
 - TSA flow diagrams:
   - `reference/tsa_flow_diagrams.md`
+- Executive model snapshot:
+  - `reference/model_executive_summary.md`
 - Promotion and governance:
   - `MODEL_REGISTRY.md`
   - `reference/model_promotion_checklist.md`

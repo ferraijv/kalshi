@@ -12,13 +12,9 @@ __pycache__/
 .DS_Store
 
 src/data/*
+src/logs/
+src/kalshi/*.log
 
 .venv/
 
-src/reports/*
-!src/reports/README.md
-!src/reports/archive/
-!src/reports/archive/legacy_root_reports/
-!src/reports/archive/legacy_root_reports/*.csv
-!src/reports/archive/legacy_root_reports/*.md
-!src/reports/archive/legacy_root_reports/*.json
+*.csv

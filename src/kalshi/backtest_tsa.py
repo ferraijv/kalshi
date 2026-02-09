@@ -23,7 +23,7 @@ from .get_current_tsa_market_prices import (
 )
 
 
-DEFAULT_REPORTS = Path(__file__).resolve().parents[1] / "reports"
+DEFAULT_REPORTS = Path(__file__).resolve().parents[1] / "reports" / "experiments" / "adhoc_backtests"
 DEFAULT_CACHE = Path(__file__).resolve().parents[1] / "data" / "tsa_market_history"
 
 

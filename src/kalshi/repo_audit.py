@@ -66,7 +66,7 @@ def audit_repo(root: Path = ROOT) -> List[Finding]:
             )
 
     comparisons_dir = root / "src" / "reports" / "experiments" / "tsa_model_compare"
-    comparison_reports = sorted(comparisons_dir.glob("comparison*.md")) if comparisons_dir.exists() else []
+    comparison_reports = sorted(comparisons_dir.rglob("comparison*.md")) if comparisons_dir.exists() else []
     if not comparison_reports:
         findings.append(
             Finding(
@@ -79,10 +79,20 @@ def audit_repo(root: Path = ROOT) -> List[Finding]:
 
     reports_root = root / "src" / "reports"
     if reports_root.exists():
+        reports_index = reports_root / "INDEX.md"
+        if not reports_index.exists():
+            findings.append(
+                Finding(
+                    "WARN",
+                    "missing_reports_index",
+                    "Report index missing; run PYTHONPATH=src python3 -m kalshi.build_reports_index.",
+                    str(reports_index),
+                )
+            )
         loose = sorted(
             p
             for p in reports_root.iterdir()
-            if p.is_file() and p.suffix in {".csv", ".md", ".json"} and p.name != "README.md"
+            if p.is_file() and p.suffix in {".csv", ".md", ".json"} and p.name not in {"README.md", "INDEX.md"}
         )
         for path in loose:
             findings.append(

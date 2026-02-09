@@ -12,6 +12,25 @@ Note: Make sure to update this file as you learn. You should update this file re
 - **Type hints/docstrings**: Recent changes added type hints and function-level docstrings; keep new code consistent.
 - **Secrets**: `.env` and AWS credentials are sensitive; do not log or commit them.
 
+## Repo simplicity and transparency rules (high importance)
+
+- **Optimize for human readability**: prefer fewer files, fewer folders, and obvious names. If adding complexity, justify it in docs.
+- **Single high-level status location**: keep this file up to date first when evaluating project state:
+  - `reference/model_executive_summary.md`
+- **Promotion source of truth**: model promotion status/history lives in:
+  - `MODEL_REGISTRY.md`
+- **Main navigation entrypoint**: report discovery starts at:
+  - `src/reports/INDEX.md`
+- **No root report clutter**: generated report artifacts must stay under:
+  - `src/reports/baselines/`
+  - `src/reports/experiments/`
+- **Use run-based experiment folders**: avoid scenario-specific folder names that may change over time.
+  - Pattern: `src/reports/experiments/<experiment_name>/runs/<run_id>/...`
+- **Prefer summaries over raw dumps in git**: keep key summary artifacts, and prune stale/duplicate detailed artifacts when safe.
+- **After meaningful experiment changes**: regenerate high-level summaries and indexes:
+  - `PYTHONPATH=src python3 -m kalshi.build_reports_index`
+  - `PYTHONPATH=src python3 -m kalshi.build_model_executive_summary`
+
 ## TSA model system notes (high importance)
 
 - **Strict model mode**: In `prob_source="model"` mode, the code must fail if model inference fails. Do not add silent fallback to heuristics in live or backtest model mode.
@@ -35,15 +54,17 @@ Note: Make sure to update this file as you learn. You should update this file re
 - Retrain production model (lean-core defaults):
   - `PYTHONPATH=src python3 -m kalshi.train_tsa_probability_model --dataset-csv src/data/datasets/tsa_contract_dataset.csv --target-col y_yes_win --run-date-col run_date --train-weeks 12 --val-weeks 4 --step-weeks 2 --out-model src/data/models/tsa_yes_probability_model.joblib`
 - Heuristic backtest:
-  - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --interval 1440 --cache src/data/tsa_market_history --report-dir src/reports/experiments/tsa_model_compare/heuristic --prob-source heuristic`
+  - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --interval 1440 --cache src/data/tsa_market_history --report-dir src/reports/experiments/tsa_model_compare/runs/<run_id>/heuristic --prob-source heuristic`
 - Strict model backtest:
-  - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --interval 1440 --cache src/data/tsa_market_history --report-dir src/reports/experiments/tsa_model_compare/model --prob-source model --model-bundle src/data/models/tsa_yes_probability_model.joblib`
+  - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --interval 1440 --cache src/data/tsa_market_history --report-dir src/reports/experiments/tsa_model_compare/runs/<run_id>/model --prob-source model --model-bundle src/data/models/tsa_yes_probability_model.joblib`
 - Compare two runs:
-  - `PYTHONPATH=src python3 -m kalshi.compare_backtests --baseline <baseline_csv> --candidate <candidate_csv> --out <comparison_md>`
+  - `PYTHONPATH=src python3 -m kalshi.compare_backtests --baseline <baseline_csv> --candidate <candidate_csv> --out src/reports/experiments/tsa_model_compare/runs/<run_id>/comparison.md`
 - Feature ablation runner:
   - `PYTHONPATH=src python3 -m kalshi.run_tsa_feature_ablation --start 2024-10-27 --end 2026-02-01 --report-dir src/reports/experiments/tsa_feature_ablation --model-dir src/data/models/ablation --cache src/data/tsa_market_history`
 - Repo organization/transparency audit:
   - `PYTHONPATH=src python3 -m kalshi.repo_audit`
+- Build executive summary:
+  - `PYTHONPATH=src python3 -m kalshi.build_model_executive_summary`
 
 ## Documentation expectations
 

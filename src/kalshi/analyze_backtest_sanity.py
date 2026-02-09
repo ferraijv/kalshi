@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 
-DEFAULT_REPORTS = Path(__file__).resolve().parents[1] / "reports"
+DEFAULT_REPORTS = Path(__file__).resolve().parents[1] / "reports" / "experiments" / "sanity_checks"
 EPS = 1e-9
 
 

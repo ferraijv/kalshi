@@ -27,6 +27,7 @@ def test_repo_audit_ok_when_required_files_present(tmp_path):
         tmp_path / "src" / "reports" / "experiments" / "tsa_model_compare" / "comparison_x.md",
         "# report",
     )
+    _touch(tmp_path / "src" / "reports" / "INDEX.md", "# index")
 
     findings = repo_audit.audit_repo(tmp_path)
     assert findings == []
