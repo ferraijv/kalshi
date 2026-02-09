@@ -1,0 +1,24 @@
+{
+  "checks_passed": 10,
+  "checks_total": 10,
+  "command": "/Users/jacobferraiolo/kalshi/src/kalshi/run_tsa_baseline.py --config src/kalshi/configs/tsa_backtest_baseline.json",
+  "generated_at": "2026-02-07T17:46:26",
+  "git_commit": "3a9806d08708953099e6e8d452003a06fb9d0b9d",
+  "metrics": {
+    "avg_edge": 0.13306652684545836,
+    "brier_mean": 0.09606288752503699,
+    "ece": 0.09078696416405208,
+    "edge_pnl_corr": 0.07800468214845133,
+    "hit_rate": 0.8920585967617579,
+    "logloss_mean": 0.8719526627491427,
+    "max_drawdown": 2.5,
+    "pnl_avg": 0.04349267540478025,
+    "pnl_std": 0.1961092802295401,
+    "pnl_total": 56.40999999999999,
+    "sharpe_like": 0.221777752454516,
+    "trades": 1297.0
+  },
+  "python_version": "3.9.6",
+  "source_csv": "/Users/jacobferraiolo/kalshi/src/reports/baselines/tsa_baseline_v1/tsa_backtest_20260207_174329.csv",
+  "source_csv_sha256": "921fe4b27ad4058012476e40df883435ff81f2c9a1dfaae8906ce8e9a8812e77"
+}

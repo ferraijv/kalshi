@@ -1,0 +1,12 @@
+{
+  "artifacts": {
+    "csv": "/Users/jacobferraiolo/kalshi/src/reports/baselines/tsa_baseline_v1/tsa_backtest_20260207_174329.csv",
+    "sanity_json": "/Users/jacobferraiolo/kalshi/src/reports/baselines/tsa_baseline_v1/tsa_backtest_sanity_20260207_174329.json",
+    "sanity_md": "/Users/jacobferraiolo/kalshi/src/reports/baselines/tsa_baseline_v1/tsa_backtest_sanity_20260207_174329.md",
+    "summary_md": "/Users/jacobferraiolo/kalshi/src/reports/baselines/tsa_baseline_v1/tsa_backtest_20260207_174329.md"
+  },
+  "comparison_md": null,
+  "config_path": "/Users/jacobferraiolo/kalshi/src/kalshi/configs/tsa_backtest_baseline.json",
+  "config_sha256": "a8a5b8f97cb40c9c0298c28347f2d36d7917d35f1169c3fb5b07f7e667081b41",
+  "generated_at": "2026-02-07T17:46:26"
+}
