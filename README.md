@@ -157,6 +157,8 @@ In strict model runs, `prob_source_heuristic` should be `0`.
   - `reference/repo_architecture_and_operations.md`
 - Comprehensive model theory + implementation:
   - `reference/tsa_models_theory_and_implementation.md`
+- TSA flow diagrams:
+  - `reference/tsa_flow_diagrams.md`
 - Promotion and governance:
   - `MODEL_REGISTRY.md`
   - `reference/model_promotion_checklist.md`
