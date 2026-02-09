@@ -1,0 +1,24 @@
+{
+  "checks_passed": 10,
+  "checks_total": 10,
+  "command": "/Users/jacobferraiolo/kalshi/src/kalshi/analyze_backtest_sanity.py --csv /Users/jacobferraiolo/kalshi/src/reports/tsa_backtest_20260207_143826.csv",
+  "generated_at": "2026-02-07T17:17:44",
+  "git_commit": "a106ead5b04836916c9087d99f8195129fbfb18b",
+  "metrics": {
+    "avg_edge": 0.17004613182457942,
+    "brier_mean": 0.1394975014706418,
+    "ece": 0.13715944386630138,
+    "edge_pnl_corr": 0.07614651761932495,
+    "hit_rate": 0.8518518518518519,
+    "logloss_mean": 1.5621311799568152,
+    "max_drawdown": 2.5,
+    "pnl_avg": 0.037248677248677246,
+    "pnl_std": 0.20052601873914522,
+    "pnl_total": 7.039999999999999,
+    "sharpe_like": 0.1857548336265145,
+    "trades": 189.0
+  },
+  "python_version": "3.9.6",
+  "source_csv": "/Users/jacobferraiolo/kalshi/src/reports/tsa_backtest_20260207_143826.csv",
+  "source_csv_sha256": "8157ad73a3fe4fb5161911a7a3b19c7274f6e55844199995899fe82bead5f09a"
+}
