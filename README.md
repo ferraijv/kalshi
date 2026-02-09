@@ -153,6 +153,10 @@ In strict model runs, `prob_source_heuristic` should be `0`.
 - TSA model artifact guide:
   - `reference/tsa_yes_probability_model_artifacts.md`
   - `src/data/models/tsa_yes_probability_model.README.md`
+- Comprehensive repo architecture and operations:
+  - `reference/repo_architecture_and_operations.md`
+- Comprehensive model theory + implementation:
+  - `reference/tsa_models_theory_and_implementation.md`
 - Promotion and governance:
   - `MODEL_REGISTRY.md`
   - `reference/model_promotion_checklist.md`

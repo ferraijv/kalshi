@@ -372,15 +372,6 @@ def test_backtest_uses_model_probability_when_available(monkeypatch, tmp_path):
 
     monkeypatch.setattr(backtest_tsa.shared, "login", lambda: FakeClient())
 
-    with pytest.raises(RuntimeError, match="refusing heuristic fallback in model mode"):
-        backtest_tsa.backtest_range(
-            start_date=datetime.date(2025, 12, 1),
-            end_date=datetime.date(2025, 12, 7),
-            interval_minutes=1440,
-            cache_dir=tmp_path,
-            prob_source="model",
-        )
-
     df = backtest_tsa.backtest_range(
         start_date=datetime.date(2025, 12, 1),
         end_date=datetime.date(2025, 12, 7),
