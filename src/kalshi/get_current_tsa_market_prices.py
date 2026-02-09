@@ -1,7 +1,11 @@
-from kalshi import shared
 import datetime
-import pandas as pd
 from pathlib import Path
+from typing import Dict, Optional
+
+import pandas as pd
+
+from kalshi import contract_probability_model
+from kalshi import shared
 
 def get_floor_strike_and_prices(event_id):
     """
@@ -68,7 +72,23 @@ def get_likelihood_of_no(prediction, floor_strike, historical_data):
     return likelihood
 
 
-def get_likelihoods_of_each_contract(prediction, run_date=None):
+def _load_historical_likelihood_data() -> pd.DataFrame:
+    """Load historical percent-error data used by heuristic fallback."""
+    data_path = Path(__file__).resolve().parents[1] / "data" / "lagged_tsa_data.csv"
+    historical_data = pd.read_csv(data_path)
+    historical_data = historical_data[['passengers_7_day_moving_average', 'prediction', 'day_of_week']]
+    historical_data = historical_data[~historical_data['prediction'].isna()]
+    historical_data['raw_error'] = historical_data['passengers_7_day_moving_average'] - historical_data['prediction']
+    historical_data['percent_error'] = historical_data['passengers_7_day_moving_average']/historical_data['prediction']-1
+    return historical_data
+
+
+def get_likelihoods_of_each_contract(
+    prediction: Dict[str, Dict[str, float]],
+    run_date: Optional[datetime.date] = None,
+    model_bundle_path: Optional[Path] = None,
+    prob_source: str = "model",
+) -> Dict[str, Dict[str, float]]:
     """
     Calculate the likelihood of each contract being correct based on a prediction and historical data.
 
@@ -100,18 +120,16 @@ def get_likelihoods_of_each_contract(prediction, run_date=None):
     if next_sunday not in prediction:
         raise ValueError(f"Prediction date {next_sunday} missing from prediction dict; aborting likelihood calc")
 
-    prediction = prediction[next_sunday]['prediction']
+    prediction_payload = prediction[next_sunday]
+    prediction_value = float(prediction_payload['prediction'])
 
-    print(f"Calculating likelihoods for {prediction}")
+    print(f"Calculating likelihoods for {prediction_value}")
 
-    data_path = Path(__file__).resolve().parents[1] / "data" / "lagged_tsa_data.csv"
-    historical_data = pd.read_csv(data_path)
-    historical_data = historical_data[['passengers_7_day_moving_average', 'prediction', 'day_of_week']]
-    historical_data = historical_data[~historical_data['prediction'].isna()]
-    historical_data['raw_error'] = historical_data['passengers_7_day_moving_average'] - historical_data['prediction']
-    historical_data['percent_error'] = historical_data['passengers_7_day_moving_average']/historical_data['prediction']-1
+    if prob_source not in {"model", "heuristic"}:
+        raise ValueError(f"Unsupported prob_source: {prob_source}")
 
     likelihoods = {}
+    historical_data = None
 
     prices = get_current_market_prices(run_date)
 
@@ -122,19 +140,41 @@ def get_likelihoods_of_each_contract(prediction, run_date=None):
 
     # floor_strike[0] is the ticker
     # floor_strike[1] is the floor_strike
+    as_of_date = run_date or datetime.date.today()
+    bundle_path = model_bundle_path or contract_probability_model.DEFAULT_MODEL_BUNDLE
     for floor_strike in floor_strikes:
-        if prediction > floor_strike[1]:
-            likelihoods[floor_strike[0]] = {
-                'floor_strike': floor_strike[1],
-                'side': "yes",
-                'true_value': get_likelihood_of_yes(prediction, floor_strike[1], historical_data)
-            }
-        elif prediction < floor_strike[1]:
-            likelihoods[floor_strike[0]] = {
-                'floor_strike': floor_strike[1],
-                "side": "no",
-                "true_value": get_likelihood_of_no(prediction, floor_strike[1], historical_data)
-            }
+        ticker = floor_strike[0]
+        strike = floor_strike[1]
+        prob_yes = contract_probability_model.predict_yes_probability(
+            prediction_passengers=prediction_value,
+            floor_strike=strike,
+            run_date=as_of_date,
+            prediction_context=prediction_payload,
+            model_bundle_path=bundle_path,
+        ) if prob_source == "model" else None
+
+        if prob_source == "model" and prob_yes is None:
+            raise RuntimeError(
+                f"Model inference failed for ticker={ticker} strike={strike}; "
+                "refusing heuristic fallback in model mode."
+            )
+
+        if prob_source == "heuristic":
+            if historical_data is None:
+                historical_data = _load_historical_likelihood_data()
+            if prediction_value > strike:
+                prob_yes = get_likelihood_of_yes(prediction_value, strike, historical_data)
+            elif prediction_value < strike:
+                prob_yes = 1.0 - get_likelihood_of_no(prediction_value, strike, historical_data)
+            else:
+                prob_yes = 0.5
+        side, true_value = contract_probability_model.map_yes_probability_to_side(prob_yes)
+        likelihoods[ticker] = {
+            'floor_strike': strike,
+            'side': side,
+            'true_value': true_value,
+            'prob_yes': prob_yes,
+        }
 
     print(likelihoods)
 

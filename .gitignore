@@ -16,3 +16,5 @@ src/data/*
 .venv/
 
 src/reports/*
+!src/reports/README.md
+

@@ -12,8 +12,10 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
+from . import contract_probability_model
 from . import shared
 from . import create_next_week_prediction as tsa_model
+from .clients import HttpError
 from .fetch_tsa_history import fetch_market_candles, build_tsa_events
 from .get_current_tsa_market_prices import (
     get_likelihood_of_yes,
@@ -37,6 +39,7 @@ class BacktestResult:
     brier: float
     logloss: float
     edge: float
+    prob_source_used: str
 
 
 def _extract_hist_date_column(hist: pd.DataFrame) -> pd.Series:
@@ -77,6 +80,8 @@ def backtest_range(
     interval_minutes: int = 1440,
     cache_dir: Path = DEFAULT_CACHE,
     include_latest_before_start: bool = False,
+    prob_source: str = "model",
+    model_bundle_path: Path = contract_probability_model.DEFAULT_MODEL_BUNDLE,
 ) -> pd.DataFrame:
     """Run a rolling TSA backtest over a date range using historical candlesticks and empirical likelihoods."""
     results: List[BacktestResult] = []
@@ -104,11 +109,20 @@ def backtest_range(
         if filtered.empty:
             continue
         filtered = tsa_model.get_recent_trend(filtered, True)
-        prediction = tsa_model.get_prediction(filtered, run_date)
+        try:
+            prediction = tsa_model.get_prediction(filtered, run_date)
+        except (KeyError, ValueError):
+            continue
         pred_key = next(iter(prediction))
-        pred_passengers = float(prediction[pred_key]["prediction"])
+        pred_payload = prediction[pred_key]
+        pred_passengers = float(pred_payload["prediction"])
 
-        event = client.get_event(event_ticker)
+        try:
+            event = client.get_event(event_ticker)
+        except HttpError as exc:
+            if exc.status == 404:
+                continue
+            raise
         for market in event.get("markets", []):
             market_ticker = market["ticker"]
 
@@ -138,19 +152,37 @@ def backtest_range(
             if np.isnan(actual):
                 continue
 
-            hist_for_run = hist[hist["hist_date"] <= run_ts] if has_hist_dates else hist
-            if hist_for_run.empty:
-                continue
+            if prob_source not in {"model", "heuristic"}:
+                raise ValueError(f"Unsupported prob_source: {prob_source}")
+            prob_yes = None
+            prob_source_used = "heuristic"
+            if prob_source == "model":
+                prob_yes = contract_probability_model.predict_yes_probability(
+                    prediction_passengers=pred_passengers,
+                    floor_strike=floor_strike,
+                    run_date=run_date,
+                    prediction_context=pred_payload,
+                    model_bundle_path=model_bundle_path,
+                )
+                if prob_yes is None:
+                    raise RuntimeError(
+                        f"Model inference failed for market={market_ticker} run_date={run_date.isoformat()} "
+                        f"event_date={event_date.isoformat()}; refusing heuristic fallback in model mode."
+                    )
+                prob_source_used = "model"
 
-            if pred_passengers > floor_strike:
-                side = "yes"
-                prob = get_likelihood_of_yes(pred_passengers, floor_strike, hist_for_run)
-            elif pred_passengers < floor_strike:
-                side = "no"
-                prob = get_likelihood_of_no(pred_passengers, floor_strike, hist_for_run)
-            else:
-                # No directional edge when prediction equals strike.
-                continue
+            if prob_source == "heuristic":
+                hist_for_run = hist[hist["hist_date"] <= run_ts] if has_hist_dates else hist
+                if hist_for_run.empty:
+                    continue
+                if pred_passengers > floor_strike:
+                    prob_yes = get_likelihood_of_yes(pred_passengers, floor_strike, hist_for_run)
+                elif pred_passengers < floor_strike:
+                    prob_yes = 1.0 - get_likelihood_of_no(pred_passengers, floor_strike, hist_for_run)
+                else:
+                    prob_yes = 0.5
+
+            side, prob = contract_probability_model.map_yes_probability_to_side(prob_yes)
 
             outcome = _calc_outcome(actual, floor_strike, side)
 
@@ -173,6 +205,7 @@ def backtest_range(
                     brier=brier,
                     logloss=logloss,
                     edge=edge,
+                    prob_source_used=prob_source_used,
                 )
             )
 
@@ -183,7 +216,7 @@ def summarize(df: pd.DataFrame) -> Dict[str, float]:
     """Return aggregate metrics from a backtest results DataFrame."""
     if df.empty:
         return {}
-    return {
+    summary = {
         "trades": len(df),
         "pnl_total": df.pnl.sum(),
         "pnl_avg": df.pnl.mean(),
@@ -191,6 +224,11 @@ def summarize(df: pd.DataFrame) -> Dict[str, float]:
         "logloss": df.logloss.mean(),
         "edge_avg": df.edge.mean(),
     }
+    if "prob_source_used" in df.columns:
+        counts = df["prob_source_used"].value_counts()
+        summary["prob_source_model"] = float(counts.get("model", 0))
+        summary["prob_source_heuristic"] = float(counts.get("heuristic", 0))
+    return summary
 
 
 def save_report(df: pd.DataFrame, out_dir: Path) -> None:
@@ -214,6 +252,13 @@ def main():
     parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE, help="Cache directory")
     parser.add_argument("--report-dir", type=Path, default=DEFAULT_REPORTS, help="Output reports dir")
     parser.add_argument("--include-latest-before-start", action="store_true", help="Include synthetic candle before start_ts")
+    parser.add_argument("--prob-source", choices=["model", "heuristic"], default="model", help="Probability source for contract win estimates")
+    parser.add_argument(
+        "--model-bundle",
+        type=Path,
+        default=contract_probability_model.DEFAULT_MODEL_BUNDLE,
+        help="Path to persisted logistic model bundle JSON",
+    )
     args = parser.parse_args()
 
     df = backtest_range(
@@ -222,6 +267,8 @@ def main():
         interval_minutes=args.interval,
         cache_dir=args.cache,
         include_latest_before_start=args.include_latest_before_start,
+        prob_source=args.prob_source,
+        model_bundle_path=args.model_bundle,
     )
     save_report(df, args.report_dir)
     print(summarize(df))
