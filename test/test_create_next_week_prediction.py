@@ -27,3 +27,13 @@ def test_get_prediction_raises_when_last_year_reference_is_nan(monkeypatch):
 
     with pytest.raises(ValueError, match="prior-year reference .* has NaN"):
         cnp.get_prediction(tsa_data, run_date=datetime.date(2022, 12, 26))
+
+
+def test_same_iso_weekday_last_year_uses_iso_year_boundary():
+    result = cnp._same_iso_weekday_last_year(pd.Timestamp("2021-01-01"))
+    assert result == pd.Timestamp("2019-12-27")
+
+
+def test_same_iso_weekday_last_year_clamps_week_53_when_missing():
+    result = cnp._same_iso_weekday_last_year(pd.Timestamp("2020-12-31"))
+    assert result == pd.Timestamp("2019-12-26")
