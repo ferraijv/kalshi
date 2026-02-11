@@ -87,7 +87,7 @@ def get_likelihoods_of_each_contract(
     prediction: Dict[str, Dict[str, float]],
     run_date: Optional[datetime.date] = None,
     model_bundle_path: Optional[Path] = None,
-    prob_source: str = "model",
+    prob_source: str = "heuristic",
 ) -> Dict[str, Dict[str, float]]:
     """
     Calculate the likelihood of each contract being correct based on a prediction and historical data.
