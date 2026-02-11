@@ -11,6 +11,7 @@ Note: Make sure to update this file as you learn. You should update this file re
 - **Key files**: `src/kalshi/shared.py` (core helpers), strategy scripts in `src/kalshi/*.py`, TSA prediction helpers in `src/kalshi/create_next_week_prediction.py`.
 - **Type hints/docstrings**: Recent changes added type hints and function-level docstrings; keep new code consistent.
 - **Secrets**: `.env` and AWS credentials are sensitive; do not log or commit them.
+- **TSA YoY date alignment**: When mapping to "same weekday last year," use ISO year/week/day (`fromisocalendar`) rather than calendar year + `%W`, which can drift around New Year and produce incorrect YoY adjustments.
 
 ## Repo simplicity and transparency rules (high importance)
 

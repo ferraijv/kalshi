@@ -12,6 +12,17 @@ from kalshi import shared
 REQUIRED_RAW_COLUMNS = {"Date", "Numbers"}
 
 
+def _same_iso_weekday_last_year(date_value: pd.Timestamp) -> pd.Timestamp:
+    """Return prior-year date with matching ISO weekday, clamping week 53 when needed."""
+    iso_year, iso_week, iso_weekday = date_value.isocalendar()
+    target_iso_year = iso_year - 1
+    max_week_in_target_year = datetime.date(target_iso_year, 12, 28).isocalendar().week
+    target_iso_week = min(int(iso_week), int(max_week_in_target_year))
+    return pd.Timestamp(
+        datetime.date.fromisocalendar(target_iso_year, target_iso_week, int(iso_weekday))
+    )
+
+
 def _validate_raw_tsa_df(df: pd.DataFrame) -> None:
     """Ensure the downloaded TSA CSV has the expected schema."""
     missing = REQUIRED_RAW_COLUMNS - set(df.columns)
@@ -69,14 +80,7 @@ def lag_passengers() -> pd.DataFrame:
 
     tsa_data['day_of_week'] = tsa_data['date'].dt.day_name()
 
-    tsa_data['week_number'] = tsa_data['date'].dt.isocalendar().week
-
-    tsa_data['year'] = tsa_data['date'].dt.year
-
-    tsa_data['last_year_date'] = pd.to_datetime(
-        (tsa_data['year']-1).astype(str) + "-" + tsa_data['week_number'].astype(str) + "-" + tsa_data['day_of_week'],
-        format='%Y-%W-%A'
-    )
+    tsa_data['last_year_date'] = tsa_data['date'].apply(_same_iso_weekday_last_year)
 
     tsa_data = tsa_data.merge(
         tsa_data[['date', 'passengers', 'day_of_week']],
