@@ -3,6 +3,8 @@ import pandas as pd
 import pytest
 
 from src.kalshi import backtest_tsa
+from src.kalshi import decision_policy
+from src.kalshi import risk_controls
 from src.kalshi.clients import HttpError
 
 
@@ -447,3 +449,124 @@ def test_backtest_model_mode_fails_when_model_unavailable(monkeypatch, tmp_path)
             cache_dir=tmp_path,
             prob_source="model",
         )
+
+
+def test_backtest_entry_policy_filters_out_by_min_edge(monkeypatch, tmp_path):
+    event_ticker = "KXTSAW-25DEC07"
+    run_date = datetime.date(2025, 11, 30)
+    event_date = datetime.date(2025, 12, 7)
+    idx = pd.to_datetime([run_date, event_date])
+    passengers = pd.DataFrame(
+        {
+            "passengers": [2_500_000, 2_520_000],
+            "previous_year": [2_400_000, 2_420_000],
+            "passengers_7_day_moving_average": [2_500_000, 2_520_000],
+            "passengers_7_day_moving_average_previous_year": [2_400_000, 2_420_000],
+        },
+        index=idx,
+    )
+    hist = pd.DataFrame(
+        {
+            "date": ["2025-11-20", "2025-11-30"],
+            "passengers_7_day_moving_average": [100.0, 102.0],
+            "prediction": [100.0, 100.0],
+            "day_of_week": ["Sunday", "Sunday"],
+        }
+    )
+    monkeypatch.setattr(backtest_tsa, "build_tsa_events", lambda *_args, **_kwargs: [event_ticker])
+    monkeypatch.setattr(backtest_tsa.tsa_model, "lag_passengers", lambda: passengers)
+    monkeypatch.setattr(backtest_tsa.tsa_model, "get_recent_trend", lambda df, use_weighting=True: df)
+    monkeypatch.setattr(
+        backtest_tsa.tsa_model,
+        "get_prediction",
+        lambda df, run_date=None: {run_date.strftime("%Y-%m-%d"): {"prediction": 2_600_000}},
+    )
+    monkeypatch.setattr(backtest_tsa.pd, "read_csv", lambda *_args, **_kwargs: hist)
+    monkeypatch.setattr(backtest_tsa, "get_likelihood_of_yes", lambda *_args, **_kwargs: 0.65)
+    monkeypatch.setattr(
+        backtest_tsa,
+        "fetch_market_candles",
+        lambda *_args, **_kwargs: pd.DataFrame({"yes_bid.close": [55], "yes_ask.close": [65]}),
+    )
+
+    class FakeClient:
+        def get_event(self, ticker):
+            assert ticker == event_ticker
+            return {"markets": [{"ticker": f"{event_ticker}-A2.45", "floor_strike": 2_450_000}]}
+
+    monkeypatch.setattr(backtest_tsa.shared, "login", lambda: FakeClient())
+
+    df = backtest_tsa.backtest_range(
+        start_date=datetime.date(2025, 12, 1),
+        end_date=datetime.date(2025, 12, 7),
+        interval_minutes=1440,
+        cache_dir=tmp_path,
+        prob_source="heuristic",
+        entry_policy=decision_policy.EntryPolicyConfig(min_edge=0.2),
+    )
+    assert df.empty
+
+
+def test_backtest_risk_config_scales_contracts_and_pnl(monkeypatch, tmp_path):
+    event_ticker = "KXTSAW-25DEC07"
+    run_date = datetime.date(2025, 11, 30)
+    event_date = datetime.date(2025, 12, 7)
+    idx = pd.to_datetime([run_date, event_date])
+    passengers = pd.DataFrame(
+        {
+            "passengers": [2_300_000, 2_500_000],
+            "previous_year": [2_200_000, 2_400_000],
+            "passengers_7_day_moving_average": [2_300_000, 2_500_000],
+            "passengers_7_day_moving_average_previous_year": [2_200_000, 2_400_000],
+        },
+        index=idx,
+    )
+    hist = pd.DataFrame(
+        {
+            "date": ["2025-11-20", "2025-11-30"],
+            "passengers_7_day_moving_average": [100.0, 102.0],
+            "prediction": [100.0, 100.0],
+            "day_of_week": ["Sunday", "Sunday"],
+        }
+    )
+
+    monkeypatch.setattr(backtest_tsa, "build_tsa_events", lambda start, end: [event_ticker])
+    monkeypatch.setattr(backtest_tsa.tsa_model, "lag_passengers", lambda: passengers)
+    monkeypatch.setattr(backtest_tsa.tsa_model, "get_recent_trend", lambda df, use_weighting=True: df)
+    monkeypatch.setattr(
+        backtest_tsa.tsa_model,
+        "get_prediction",
+        lambda df, run_date=None: {run_date.strftime("%Y-%m-%d"): {"prediction": 2_600_000}},
+    )
+    monkeypatch.setattr(backtest_tsa.pd, "read_csv", lambda *_args, **_kwargs: hist)
+    monkeypatch.setattr(backtest_tsa, "get_likelihood_of_yes", lambda *_args, **_kwargs: 0.9)
+
+    class FakeClient:
+        def get_event(self, ticker):
+            assert ticker == event_ticker
+            return {"markets": [{"ticker": f"{event_ticker}-A2.45", "floor_strike": 2_450_000}]}
+
+    monkeypatch.setattr(backtest_tsa.shared, "login", lambda: FakeClient())
+    monkeypatch.setattr(
+        backtest_tsa,
+        "fetch_market_candles",
+        lambda *_args, **_kwargs: pd.DataFrame({"yes_bid.close": [55], "yes_ask.close": [65]}),
+    )
+
+    df = backtest_tsa.backtest_range(
+        start_date=datetime.date(2025, 12, 1),
+        end_date=datetime.date(2025, 12, 7),
+        interval_minutes=1440,
+        cache_dir=tmp_path,
+        prob_source="heuristic",
+        risk_config=risk_controls.RiskConfig(
+            bankroll_dollars=10.0,
+            event_risk_pct=1.0,
+            max_market_share_of_event=1.0,
+        ),
+    )
+    assert len(df) == 1
+    row = df.iloc[0]
+    assert row["contracts"] == 16  # floor(10 / 0.6)
+    assert row["position_risk"] == pytest.approx(9.6)
+    assert row["pnl"] == pytest.approx(6.4)  # 0.4 per contract * 16

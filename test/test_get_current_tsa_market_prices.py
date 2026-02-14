@@ -6,7 +6,7 @@ import pytest
 from src.kalshi import get_current_tsa_market_prices as prices
 
 
-def test_get_likelihoods_of_each_contract_uses_model_first(monkeypatch):
+def test_get_likelihoods_of_each_contract_uses_model_when_selected(monkeypatch):
     run_date = datetime.date(2025, 12, 1)
     prediction = {
         "2025-12-07": {
@@ -29,7 +29,7 @@ def test_get_likelihoods_of_each_contract_uses_model_first(monkeypatch):
     monkeypatch.setattr(prices, "get_likelihood_of_yes", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("heuristic should not run")))
     monkeypatch.setattr(prices, "get_likelihood_of_no", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("heuristic should not run")))
 
-    out = prices.get_likelihoods_of_each_contract(prediction=prediction, run_date=run_date)
+    out = prices.get_likelihoods_of_each_contract(prediction=prediction, run_date=run_date, prob_source="model")
     row = out["KXTSAW-25DEC07-A2.45"]
     assert row["side"] == "yes"
     assert row["true_value"] == 0.81
@@ -60,7 +60,7 @@ def test_get_likelihoods_of_each_contract_model_mode_fails_when_model_unavailabl
         prices.get_likelihoods_of_each_contract(prediction=prediction, run_date=run_date, prob_source="model")
 
 
-def test_get_likelihoods_of_each_contract_uses_heuristic_when_selected(monkeypatch):
+def test_get_likelihoods_of_each_contract_uses_heuristic_by_default(monkeypatch):
     run_date = datetime.date(2025, 12, 1)
     prediction = {
         "2025-12-07": {
@@ -83,7 +83,7 @@ def test_get_likelihoods_of_each_contract_uses_heuristic_when_selected(monkeypat
     monkeypatch.setattr(prices, "_load_historical_likelihood_data", lambda: pd.DataFrame({"percent_error": [0.0]}))
     monkeypatch.setattr(prices, "get_likelihood_of_no", lambda *_args, **_kwargs: 0.7)
 
-    out = prices.get_likelihoods_of_each_contract(prediction=prediction, run_date=run_date, prob_source="heuristic")
+    out = prices.get_likelihoods_of_each_contract(prediction=prediction, run_date=run_date)
     row = out["KXTSAW-25DEC07-A2.45"]
     assert row["side"] == "no"
     assert row["prob_yes"] == pytest.approx(0.3)

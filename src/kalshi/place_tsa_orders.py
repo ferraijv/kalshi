@@ -1,7 +1,10 @@
 from kalshi import shared
+from kalshi.config import load_config
+from kalshi import risk_controls
 import uuid
+import datetime
 
-def create_limit_orders_for_all_contracts(likelihoods, run_date=None):
+def create_limit_orders_for_all_contracts(likelihoods, run_date=None, risk_config=None, realized_daily_pnl=0.0):
     """
     Create limit orders for all contracts based on their calculated likelihoods.
 
@@ -29,23 +32,58 @@ def create_limit_orders_for_all_contracts(likelihoods, run_date=None):
     list: A list of dictionaries representing the created orders, including contract ticker,
           order parameters, and side of the contract.
     """
+    if risk_config is None:
+        cfg = load_config()
+        active_risk_config = risk_controls.RiskConfig(
+            bankroll_dollars=cfg.tsa_bankroll_dollars,
+            event_risk_pct=cfg.tsa_event_risk_pct,
+            max_market_share_of_event=cfg.tsa_max_market_share_of_event,
+            daily_max_loss_pct=cfg.tsa_daily_max_loss_pct,
+            min_contracts=cfg.tsa_min_contracts,
+            max_contracts_per_market=cfg.tsa_max_contracts_per_market,
+        )
+    else:
+        active_risk_config = risk_config
     exchange_client = shared.login(use_demo=True)
     event_ticker = shared.create_tsa_event_id(shared.get_next_sunday(reference_date=run_date))
+    trade_date = run_date or datetime.date.today()
+    state = risk_controls.RiskState(daily_realized_pnl={trade_date: float(realized_daily_pnl)})
     print(exchange_client.get_orders(event_ticker=event_ticker)['orders'])
     orders = []
     for contract_ticker, likelihood in likelihoods.items():
         if likelihood['true_value'] < .95 and likelihood['true_value'] > .05: # Things get weird at the extremes
+            side_price = float(round(likelihood['true_value']*.75, 2))
+            contracts, reject_reason = risk_controls.contracts_for_order(
+                active_risk_config,
+                state,
+                event_id=event_ticker,
+                market_ticker=contract_ticker,
+                side_price=side_price,
+                trade_date=trade_date,
+            )
+            if contracts <= 0:
+                print(f"Skipping {contract_ticker}: {reject_reason}")
+                continue
             order_params = {
                 "action": "buy",
                 "type": "limit",
                 "side": likelihood['side'],
-                "count": 10,
-                f"{likelihood['side']}_price": int(round(likelihood['true_value']*.75, 2)*100) # Margin of safety
+                "count": contracts,
+                f"{likelihood['side']}_price": int(side_price*100) # Margin of safety
 
             }
             print(order_params)
             exchange_client.create_order(ticker=contract_ticker, client_order_id=str(uuid.uuid4()), **order_params)
             order_params['ticker'] = contract_ticker
             orders.append(order_params)
+            risk_controls.record_trade(
+                state,
+                event_id=event_ticker,
+                market_ticker=contract_ticker,
+                trade_date=trade_date,
+                side_price=side_price,
+                contracts=contracts,
+                pnl=0.0,  # live realized pnl is tracked externally
+            )
 
     return orders

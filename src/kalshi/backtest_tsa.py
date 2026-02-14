@@ -7,12 +7,14 @@ import datetime
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
 from . import contract_probability_model
+from . import decision_policy
+from . import risk_controls
 from . import shared
 from . import create_next_week_prediction as tsa_model
 from .clients import HttpError
@@ -29,6 +31,8 @@ DEFAULT_CACHE = Path(__file__).resolve().parents[1] / "data" / "tsa_market_histo
 
 @dataclass
 class BacktestResult:
+    """One simulated trade after policy gating is applied."""
+
     market: str
     date: datetime.date
     side: str
@@ -40,6 +44,11 @@ class BacktestResult:
     logloss: float
     edge: float
     prob_source_used: str
+    prob_yes: float
+    side_price: float
+    spread: Optional[float]
+    contracts: int
+    position_risk: float
 
 
 def _extract_hist_date_column(hist: pd.DataFrame) -> pd.Series:
@@ -68,6 +77,19 @@ def _calc_fill_price(candles: pd.DataFrame) -> float:
     return float(mid_cents / 100)  # convert cents->prob
 
 
+def _extract_top_of_book(candles: pd.DataFrame) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    """Return (yes_bid, yes_ask, spread) in probability units when available."""
+    if candles.empty:
+        return None, None, None
+    yes_bid = candles.get("yes_bid.close")
+    yes_ask = candles.get("yes_ask.close")
+    if yes_bid is None or yes_ask is None:
+        return None, None, None
+    bid = float(yes_bid.iloc[0]) / 100.0
+    ask = float(yes_ask.iloc[0]) / 100.0
+    return bid, ask, ask - bid
+
+
 def _calc_outcome(actual_passengers: float, floor_strike: float, side: str) -> int:
     """Return 1 if the chosen side wins given actual passengers vs strike, else 0."""
     outcome_yes = int(actual_passengers >= floor_strike)
@@ -82,8 +104,22 @@ def backtest_range(
     include_latest_before_start: bool = False,
     prob_source: str = "model",
     model_bundle_path: Path = contract_probability_model.DEFAULT_MODEL_BUNDLE,
+    entry_policy: Optional[decision_policy.EntryPolicyConfig] = None,
+    risk_config: Optional[risk_controls.RiskConfig] = None,
 ) -> pd.DataFrame:
-    """Run a rolling TSA backtest over a date range using historical candlesticks and empirical likelihoods."""
+    """Run a rolling TSA backtest over a date range.
+
+    Workflow per market:
+    1) build/lookup probability (model or heuristic)
+    2) map probability to side + side confidence
+    3) derive side price, edge, and spread context
+    4) apply entry policy gates
+    5) if allowed, settle and record PnL + diagnostics
+
+    Notes:
+    - In ``prob_source="model"`` mode, model inference failure is fatal by design.
+    - ``entry_policy=None`` means permissive policy (no filters enabled).
+    """
     results: List[BacktestResult] = []
 
     events = build_tsa_events(start_date, end_date)
@@ -97,6 +133,8 @@ def backtest_range(
     hist = hist[~hist["prediction"].isna()]
     hist["percent_error"] = hist["passengers_7_day_moving_average"] / hist["prediction"] - 1
     has_hist_dates = bool(hist["hist_date"].notna().any())
+    policy = entry_policy or decision_policy.EntryPolicyConfig()
+    risk_state = risk_controls.RiskState() if risk_config is not None else None
 
     for event_ticker in events:
         date_str = event_ticker.split("-")[-1]
@@ -148,6 +186,7 @@ def backtest_range(
             fill_price = _calc_fill_price(candles)
             if np.isnan(fill_price):
                 continue
+            _yes_bid, _yes_ask, spread = _extract_top_of_book(candles)
 
             actual_ts = pd.Timestamp(event_date)
             if actual_ts not in passenger_data.index:
@@ -192,7 +231,32 @@ def backtest_range(
 
             contract_price = fill_price if side == "yes" else 1 - fill_price
             edge = prob - contract_price
-            pnl = (1 - contract_price) if outcome == 1 else (-contract_price)
+            entry_decision = decision_policy.evaluate_entry(
+                policy,
+                prob_yes=float(prob_yes),
+                edge=float(edge),
+                side_price=float(contract_price),
+                spread=spread,
+            )
+            if not entry_decision.allow_trade:
+                continue
+            contracts = 1
+            if risk_config is not None and risk_state is not None:
+                contracts, risk_reject_reason = risk_controls.contracts_for_order(
+                    risk_config,
+                    risk_state,
+                    event_id=event_ticker,
+                    market_ticker=market_ticker,
+                    side_price=float(contract_price),
+                    trade_date=event_date,
+                )
+                if contracts <= 0:
+                    logging.debug("Rejected by risk controls market=%s reason=%s", market_ticker, risk_reject_reason)
+                    continue
+
+            pnl_per_contract = (1 - contract_price) if outcome == 1 else (-contract_price)
+            pnl = pnl_per_contract * contracts
+            position_risk = float(contract_price * contracts)
             brier = (prob - outcome) ** 2
             prob_clipped = float(np.clip(prob, 1e-9, 1 - 1e-9))
             logloss = -(outcome * np.log(prob_clipped) + (1 - outcome) * np.log(1 - prob_clipped))
@@ -210,8 +274,23 @@ def backtest_range(
                     logloss=logloss,
                     edge=edge,
                     prob_source_used=prob_source_used,
+                    prob_yes=float(prob_yes),
+                    side_price=float(contract_price),
+                    spread=spread,
+                    contracts=contracts,
+                    position_risk=position_risk,
                 )
             )
+            if risk_config is not None and risk_state is not None:
+                risk_controls.record_trade(
+                    risk_state,
+                    event_id=event_ticker,
+                    market_ticker=market_ticker,
+                    trade_date=event_date,
+                    side_price=float(contract_price),
+                    contracts=contracts,
+                    pnl=float(pnl),
+                )
 
     return pd.DataFrame([r.__dict__ for r in results])
 
@@ -257,6 +336,40 @@ def main():
     parser.add_argument("--report-dir", type=Path, default=DEFAULT_REPORTS, help="Output reports dir")
     parser.add_argument("--include-latest-before-start", action="store_true", help="Include synthetic candle before start_ts")
     parser.add_argument("--prob-source", choices=["model", "heuristic"], default="model", help="Probability source for contract win estimates")
+    parser.add_argument("--min-edge", type=float, default=None, help="Minimum edge required to enter a trade")
+    parser.add_argument(
+        "--no-trade-prob-band",
+        type=float,
+        default=0.0,
+        help="No-trade half-width around 0.5 for P(YES); e.g. 0.02 blocks [0.48,0.52]",
+    )
+    parser.add_argument(
+        "--max-side-price",
+        type=float,
+        default=None,
+        help="Optional max contract price for the chosen side",
+    )
+    parser.add_argument(
+        "--max-spread",
+        type=float,
+        default=None,
+        help="Optional max YES bid/ask spread; trades are rejected when spread is missing",
+    )
+    parser.add_argument("--bankroll-dollars", type=float, default=None, help="Optional bankroll for risk-based sizing")
+    parser.add_argument("--event-risk-pct", type=float, default=0.015, help="Event risk budget as pct of bankroll")
+    parser.add_argument(
+        "--max-market-share-of-event",
+        type=float,
+        default=0.25,
+        help="Per-market max share of event risk budget",
+    )
+    parser.add_argument(
+        "--daily-max-loss-pct",
+        type=float,
+        default=None,
+        help="Optional daily max realized loss as pct of bankroll",
+    )
+    parser.add_argument("--max-contracts-per-market", type=int, default=None, help="Optional hard cap on contracts per market")
     parser.add_argument(
         "--model-bundle",
         type=Path,
@@ -273,6 +386,23 @@ def main():
         include_latest_before_start=args.include_latest_before_start,
         prob_source=args.prob_source,
         model_bundle_path=args.model_bundle,
+        entry_policy=decision_policy.EntryPolicyConfig(
+            min_edge=args.min_edge,
+            no_trade_prob_band=args.no_trade_prob_band,
+            max_side_price=args.max_side_price,
+            max_spread=args.max_spread,
+        ),
+        risk_config=(
+            risk_controls.RiskConfig(
+                bankroll_dollars=args.bankroll_dollars,
+                event_risk_pct=args.event_risk_pct,
+                max_market_share_of_event=args.max_market_share_of_event,
+                daily_max_loss_pct=args.daily_max_loss_pct,
+                max_contracts_per_market=args.max_contracts_per_market,
+            )
+            if args.bankroll_dollars is not None
+            else None
+        ),
     )
     save_report(df, args.report_dir)
     print(summarize(df))

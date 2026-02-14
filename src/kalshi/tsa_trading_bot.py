@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
 import datetime
-import pandas as pd
 import logging
+from typing import Any, Dict, Optional, Tuple
 
 
 def _ensure_imports():
@@ -47,7 +47,33 @@ def _init_logging():
     logging.info(f"Log file: {logfile}")
     return logfile
 
-def _format_email(prediction: dict, likelihoods: dict, orders) -> str:
+def _compute_likelihoods_for_both_sources(
+    prediction: Dict[str, Dict[str, float]],
+    run_date: Optional[datetime.date],
+) -> Tuple[Dict[str, Dict[str, Dict[str, float]]], Dict[str, str]]:
+    """Compute heuristic then model likelihoods and capture per-source failures."""
+    results: Dict[str, Dict[str, Dict[str, float]]] = {}
+    errors: Dict[str, str] = {}
+    for source in ("heuristic", "model"):
+        try:
+            results[source] = get_likelihoods_of_each_contract(
+                prediction,
+                run_date=run_date,
+                prob_source=source,
+            )
+        except Exception as exc:
+            errors[source] = str(exc)
+            logging.exception("Failed computing %s likelihoods", source)
+    return results, errors
+
+
+def _format_email(
+    prediction: Dict[str, Dict[str, float]],
+    heuristic_likelihoods: Dict[str, Dict[str, Any]],
+    model_likelihoods: Dict[str, Dict[str, Any]],
+    errors: Dict[str, str],
+    orders: Any,
+) -> str:
     """Create a readable plaintext summary for email."""
     # prediction dict is keyed by date string
     date_key = next(iter(prediction))
@@ -68,18 +94,36 @@ def _format_email(prediction: dict, likelihoods: dict, orders) -> str:
         f"Days until Sunday: {pred.get('days_until_sunday')}",
         f"Most recent data date: {pred.get('most_recent_date')}",
         "",
-        "Contract likelihoods (sorted by floor_strike):",
+        "Trading mode: heuristic (orders placed from heuristic output only)",
+        "",
+        "Heuristic likelihoods (sorted by floor_strike):",
     ]
 
-    rows = []
-    for ticker, info in sorted(likelihoods.items(), key=lambda x: x[1].get("floor_strike", 0)):
-        rows.append(
+    heuristic_rows = []
+    for ticker, info in sorted(heuristic_likelihoods.items(), key=lambda x: x[1].get("floor_strike", 0)):
+        heuristic_rows.append(
             f"{ticker:<18} | strike={info.get('floor_strike')} | side={info.get('side')} | value={as_float(info.get('true_value', 0)):.3f}"
         )
 
+    model_lines = ["", "Model likelihoods (sorted by floor_strike):"]
+    model_rows = []
+    for ticker, info in sorted(model_likelihoods.items(), key=lambda x: x[1].get("floor_strike", 0)):
+        model_rows.append(
+            f"{ticker:<18} | strike={info.get('floor_strike')} | side={info.get('side')} | value={as_float(info.get('true_value', 0)):.3f}"
+        )
+    if not model_rows:
+        model_rows.append("(none)")
+
+    error_lines = []
+    if errors:
+        error_lines.extend(["", "Errors:"])
+        for source in ("heuristic", "model"):
+            if source in errors:
+                error_lines.append(f"- {source}: {errors[source]}")
+
     order_line = orders if isinstance(orders, str) else str(orders)
 
-    return "\n".join(summary_lines + rows + ["", "Orders:", order_line])
+    return "\n".join(summary_lines + heuristic_rows + model_lines + model_rows + error_lines + ["", "Orders:", order_line])
 
 
 def main():
@@ -99,22 +143,35 @@ def main():
 
     fetch_all_tsa_data()
     prediction = create_next_week_prediction(run_date=run_date)
-    likelihoods = get_likelihoods_of_each_contract(prediction, run_date=run_date)
+    likelihoods_by_source, likelihood_errors = _compute_likelihoods_for_both_sources(prediction=prediction, run_date=run_date)
+    heuristic_likelihoods = likelihoods_by_source.get("heuristic", {})
+    model_likelihoods = likelihoods_by_source.get("model", {})
     logging.info(f"Prediction keys: {list(prediction.keys())}")
-    logging.info(f"Computed likelihoods for {len(likelihoods)} contracts")
+    logging.info(f"Computed heuristic likelihoods for {len(heuristic_likelihoods)} contracts")
+    logging.info(f"Computed model likelihoods for {len(model_likelihoods)} contracts")
 
     if datetime.date.today().weekday() == 0:
-        try:
-            orders = create_limit_orders_for_all_contracts(likelihoods, run_date=run_date)
-            logging.info(f"Orders placed: {orders}")
-        except Exception:
-            orders = "No orders placed today"
-            logging.exception("Order placement failed")
+        if not heuristic_likelihoods:
+            orders = "No orders placed: heuristic likelihoods unavailable"
+            logging.warning("Skipping order placement because heuristic likelihoods are empty")
+        else:
+            try:
+                orders = create_limit_orders_for_all_contracts(heuristic_likelihoods, run_date=run_date)
+                logging.info(f"Orders placed: {orders}")
+            except Exception:
+                orders = "No orders placed today"
+                logging.exception("Order placement failed")
     else:
         orders = "No orders placed today"
         logging.info("Not Monday: skipping order placement")
 
-    body = _format_email(prediction, likelihoods, orders)
+    body = _format_email(
+        prediction=prediction,
+        heuristic_likelihoods=heuristic_likelihoods,
+        model_likelihoods=model_likelihoods,
+        errors=likelihood_errors,
+        orders=orders,
+    )
     shared.send_email(body)
     logging.info("Run complete; email sent")
     logging.info(f"Log file for this run: {logfile}")

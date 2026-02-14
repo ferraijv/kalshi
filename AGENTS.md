@@ -58,8 +58,12 @@ Note: Make sure to update this file as you learn. You should update this file re
   - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --interval 1440 --cache src/data/tsa_market_history --report-dir src/reports/experiments/tsa_model_compare/runs/<run_id>/heuristic --prob-source heuristic`
 - Strict model backtest:
   - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --interval 1440 --cache src/data/tsa_market_history --report-dir src/reports/experiments/tsa_model_compare/runs/<run_id>/model --prob-source model --model-bundle src/data/models/tsa_yes_probability_model.joblib`
+- Backtest with risk-based sizing:
+  - `PYTHONPATH=src python3 -m kalshi.backtest_tsa --start 2024-10-27 --end 2026-02-01 --prob-source heuristic --bankroll-dollars 10000 --event-risk-pct 0.015 --max-market-share-of-event 0.25`
 - Compare two runs:
   - `PYTHONPATH=src python3 -m kalshi.compare_backtests --baseline <baseline_csv> --candidate <candidate_csv> --out src/reports/experiments/tsa_model_compare/runs/<run_id>/comparison.md`
+- Policy threshold sweep (entry gates):
+  - `PYTHONPATH=src python3 -m kalshi.run_tsa_policy_sweep --start 2024-10-27 --end 2026-02-01 --prob-source model --min-edge-grid none,0.01,0.02 --no-trade-band-grid 0.0,0.01,0.02 --max-side-price-grid none,0.75,0.80 --max-spread-grid none,0.10,0.15`
 - Feature ablation runner:
   - `PYTHONPATH=src python3 -m kalshi.run_tsa_feature_ablation --start 2024-10-27 --end 2026-02-01 --report-dir src/reports/experiments/tsa_feature_ablation --model-dir src/data/models/ablation --cache src/data/tsa_market_history`
 - Repo organization/transparency audit:

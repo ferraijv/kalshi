@@ -28,6 +28,13 @@ Scope: ship a trustworthy TSA trading system where probability modeling, decisio
     - better `pnl_total` vs heuristic on current test window,
     - much better probability metrics,
     - higher max drawdown (needs mitigation).
+- Decision policy + sizing infrastructure:
+  - Entry-policy gating module added (`decision_policy.py`) with no-trade band / edge / price / spread filters.
+  - Policy sweep runner added (`run_tsa_policy_sweep.py`) with baseline-relative selection gates.
+  - Sweep runtime optimized to run one baseline backtest and apply policies offline.
+  - Shared risk controls module added (`risk_controls.py`) with event/market caps and optional daily stop.
+  - Live TSA order sizing now uses risk-based contract counts (replacing fixed `count=10`).
+  - Backtest supports risk-based contract sizing for live/backtest parity.
 - Repo governance scaffolding:
   - `MODEL_REGISTRY.md` added.
   - `reference/model_promotion_checklist.md` added.
@@ -51,9 +58,11 @@ Goal: convert improved probabilities into better risk-adjusted PnL.
 ## 2) Drawdown control and risk caps
 Goal: make live behavior safer before further capital exposure.
 
-- Add per-trade and per-event position caps.
-- Add daily max-loss stop behavior for live loop.
-- Add backtest reporting for drawdown episodes and tail loss concentration.
+- Done (initial): per-event and per-market risk caps are implemented in shared risk controls and wired into live/backtest sizing.
+- Next:
+  - add explicit daily max-loss stop wiring in the live loop from realized PnL state,
+  - add backtest reporting for drawdown episodes and tail loss concentration,
+  - tune default bankroll/risk parameters from observed live and backtest behavior.
 
 ## 3) Dataset and feature expansion (incremental)
 Goal: evaluate whether richer point-in-time features add real value.

@@ -112,6 +112,22 @@ PYTHONPATH=src python3 -m kalshi.backtest_tsa \
   --model-bundle src/data/models/tsa_yes_probability_model.joblib
 ```
 
+### 5b) Run backtest with entry gates
+
+```bash
+PYTHONPATH=src python3 -m kalshi.backtest_tsa \
+  --start 2024-10-27 \
+  --end 2026-02-01 \
+  --interval 1440 \
+  --cache src/data/tsa_market_history \
+  --report-dir src/reports/experiments/adhoc_backtests \
+  --prob-source heuristic \
+  --min-edge 0.02 \
+  --no-trade-prob-band 0.01 \
+  --max-side-price 0.80 \
+  --max-spread 0.12
+```
+
 ### 6) Compare baseline vs model
 
 ```bash
@@ -132,6 +148,19 @@ PYTHONPATH=src python3 -m kalshi.run_tsa_feature_ablation \
   --cache src/data/tsa_market_history
 ```
 
+### 8) Run policy threshold sweep
+
+```bash
+PYTHONPATH=src python3 -m kalshi.run_tsa_policy_sweep \
+  --start 2024-10-27 \
+  --end 2026-02-01 \
+  --prob-source model \
+  --min-edge-grid none,0.01,0.02 \
+  --no-trade-band-grid 0.0,0.01,0.02 \
+  --max-side-price-grid none,0.75,0.80 \
+  --max-spread-grid none,0.10,0.15
+```
+
 ## Backtest Output Notes
 
 - `backtest_tsa` CSV rows include `prob_source_used` to audit which probability path produced each trade.
@@ -146,6 +175,13 @@ In strict model runs, `prob_source_heuristic` should be `0`.
 - In model mode, inference failures are fatal by design.
 - Validate schema/metadata before using a new model artifact.
 - Do not run live scripts without valid credentials and a reviewed risk process.
+- TSA live order sizing now uses risk-based contract counts (event + market caps) instead of a fixed count.
+  - `TSA_BANKROLL_DOLLARS` (default `10000`)
+  - `TSA_EVENT_RISK_PCT` (default `0.015`)
+  - `TSA_MAX_MARKET_SHARE_OF_EVENT` (default `0.25`)
+  - `TSA_DAILY_MAX_LOSS_PCT` (optional)
+  - `TSA_MAX_CONTRACTS_PER_MARKET` (optional)
+  - `TSA_MIN_CONTRACTS` (default `1`)
 
 ## References
 
@@ -165,4 +201,5 @@ In strict model runs, `prob_source_heuristic` should be `0`.
   - `MODEL_REGISTRY.md`
   - `reference/model_promotion_checklist.md`
 - TSA metrics guide: `reference/tsa_model_metrics_guide.md`
+- TSA decision policy guide: `reference/tsa_decision_policy_guide.md`
 - Delivery plan: `ROADMAP.md`
